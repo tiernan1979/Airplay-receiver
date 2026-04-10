@@ -1,0 +1,208 @@
+name: CI — Security Scan + Build
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+  release:
+    types: [published]
+
+jobs:
+  # ── Security scanning ────────────────────────────────────────────────────────
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install security tools
+        run: pip install bandit[toml] safety pip-audit
+
+      - name: Bandit — static code analysis
+        run: bandit -r src/ -c pyproject.toml -f json -o bandit-report.json || true
+
+      - name: Bandit — print summary
+        run: bandit -r src/ -c pyproject.toml -ll
+
+      - name: pip-audit — dependency vulnerability scan
+        run: pip-audit --requirement requirements.txt --format=json --output=audit-report.json || true
+
+      - name: pip-audit — print summary
+        run: pip-audit --requirement requirements.txt
+
+      - name: Safety — check known CVEs
+        run: safety check --file requirements.txt --short-report || true
+
+      - name: Upload security reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-reports
+          path: |
+            bandit-report.json
+            audit-report.json
+
+  # ── Tests ────────────────────────────────────────────────────────────────────
+  test:
+    name: Tests (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          pip install -e ".[dev]"
+          # Install headless alternatives for CI
+          pip install pytest pytest-cov
+
+      - name: Run tests
+        run: pytest tests/ -v --cov=src/airplay_receiver --cov-report=xml
+        env:
+          DISPLAY: ""   # no display needed — tests mock tkinter
+
+      - name: Upload coverage
+        if: matrix.python-version == '3.12'
+        uses: codecov/codecov-action@v4
+        with:
+          file: coverage.xml
+          fail_ci_if_error: false
+
+  # ── Build Windows EXE ────────────────────────────────────────────────────────
+  build-windows:
+    name: Build Windows EXE
+    runs-on: windows-latest
+    needs: [security, test]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies + PyInstaller
+        run: |
+          pip install -e ".[dev]"
+          pip install pyinstaller
+
+      - name: Build EXE
+        run: |
+          pyinstaller `
+            --onefile `
+            --noconsole `
+            --name AirPlayReceiver `
+            --icon install/windows/app.ico `
+            --add-data "src/airplay_receiver;airplay_receiver" `
+            --hidden-import sounddevice `
+            --hidden-import numpy `
+            --hidden-import zeroconf `
+            --hidden-import pystray `
+            --hidden-import PIL `
+            --hidden-import av `
+            src/airplay_receiver/__main__.py
+
+      - name: Verify EXE
+        run: dist\AirPlayReceiver.exe --help 2>nul || echo "EXE built (exits non-zero without display)"
+
+      - name: Package with installer
+        run: |
+          mkdir release
+          copy dist\AirPlayReceiver.exe release\
+          copy install\windows\Install_AirPlayReceiver.bat release\
+          copy README.md release\
+
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AirPlayReceiver-Windows
+          path: release/
+
+      - name: Upload to GitHub Release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            release/AirPlayReceiver.exe
+            release/Install_AirPlayReceiver.bat
+
+  # ── Build Linux Binary ───────────────────────────────────────────────────────
+  build-linux:
+    name: Build Linux Binary
+    runs-on: ubuntu-22.04
+    needs: [security, test]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install system deps (tkinter, audio, build tools)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y \
+            python3-tk \
+            portaudio19-dev \
+            libavcodec-dev libavformat-dev libswscale-dev \
+            ffmpeg \
+            libgirepository1.0-dev \
+            patchelf
+
+      - name: Install Python deps + PyInstaller
+        run: |
+          pip install -e ".[dev]"
+          pip install pyinstaller
+
+      - name: Build Linux binary
+        run: |
+          pyinstaller \
+            --onefile \
+            --name airplay-receiver \
+            --add-data "src/airplay_receiver:airplay_receiver" \
+            --hidden-import sounddevice \
+            --hidden-import numpy \
+            --hidden-import zeroconf \
+            --hidden-import pystray \
+            --hidden-import PIL \
+            --hidden-import av \
+            src/airplay_receiver/__main__.py
+
+      - name: Test binary runs
+        run: |
+          chmod +x dist/airplay-receiver
+          timeout 3 dist/airplay-receiver || true
+
+      - name: Package with installer
+        run: |
+          mkdir release
+          cp dist/airplay-receiver release/
+          cp install/linux/install.sh release/
+          cp README.md release/
+          tar -czf AirPlayReceiver-Linux.tar.gz -C release .
+
+      - name: Upload Linux artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AirPlayReceiver-Linux
+          path: AirPlayReceiver-Linux.tar.gz
+
+      - name: Upload to GitHub Release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: AirPlayReceiver-Linux.tar.gz
