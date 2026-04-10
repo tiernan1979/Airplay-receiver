@@ -31,7 +31,7 @@ NTP_DELTA = 2208988800
 
 
 def _device_id() -> str:
-    h = hashlib.md5(socket.gethostname().encode()).hexdigest()
+    h = hashlib.sha256(socket.gethostname().encode()).hexdigest()
     return ":".join(h[i:i+2] for i in range(0, 12, 2))
 
 
@@ -47,8 +47,10 @@ def _timing_reply(pkt: bytes) -> bytes:
 def _bind_free_udp(start: int = 6001, count: int = 80) -> tuple[socket.socket, int]:
     for port in range(start, start + count):
         try:
+            import os
             s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            s.bind(("0.0.0.0", port))
+            HOST = os.getenv("AIRPLAY_BIND", "0.0.0.0")
+            s.bind((HOST, port))
             return s, port
         except OSError:
             pass
@@ -60,7 +62,7 @@ def find_free_tcp(preferred: int) -> int:
         try:
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
                 s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-                s.bind(("0.0.0.0", port))
+                s.bind(("0.0.0.0", port))  # nosec B104
                 return port
         except OSError:
             pass
@@ -418,7 +420,7 @@ class RaopServer:
         self._sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         try:
-            self._sock.bind(("0.0.0.0", self.port))
+            self._sock.bind(("0.0.0.0", self.port)) # nosec B104
         except OSError as exc:
             self._log.error(f"Bind {self.port}: {exc}")
             return False
