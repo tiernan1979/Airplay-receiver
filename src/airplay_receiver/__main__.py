@@ -7,12 +7,12 @@ from __future__ import annotations
 import threading
 import tkinter as tk
 
-from .audio   import AudioEngine, AUDIO_AVAILABLE, AV_AVAILABLE
-from .config  import init as config_init
-from .dacp    import DacpDiscovery, DacpRemote
-from .platform import THEME_FILE
-from .raop    import MdnsAdvertiser, RaopServer, find_free_tcp
-from .themes  import ThemeManager, write_default_theme_file
+from airplay_receiver.audio import AudioEngine, AUDIO_AVAILABLE, AV_AVAILABLE
+from airplay_receiver.config import init as config_init
+from airplay_receiver.dacp import DacpDiscovery, DacpRemote
+from airplay_receiver.platform import THEME_FILE
+from airplay_receiver.raop import MdnsAdvertiser, RaopServer, find_free_tcp
+from airplay_receiver.themes import ThemeManager, write_default_theme_file
 
 try:
     import pystray

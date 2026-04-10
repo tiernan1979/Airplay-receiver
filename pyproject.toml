@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "airplay-receiver"
-version = "11.0.0"
+version = "1.0"
 description = "AirPlay receiver for Windows and Linux with Music Assistant support"
 readme = "README.md"
 requires-python = ">=3.10"
