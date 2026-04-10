@@ -50,7 +50,7 @@ def _bind_free_udp(start: int = 6001, count: int = 80) -> tuple[socket.socket, i
             import os
             s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             HOST = os.getenv("AIRPLAY_BIND", "0.0.0.0")
-            s.bind((HOST, port))
+            s.bind((HOST, port)) # nosec B104
             return s, port
         except OSError:
             pass

@@ -58,7 +58,6 @@ class DacpDiscovery:
 
 class DacpRemote:
     """Send HTTP commands to the MA DACP server."""
-
     def __init__(self, state: "PlayerState") -> None:
         self._state = state
 
@@ -68,11 +67,17 @@ class DacpRemote:
             return
         url = f"http://{s.dacp_ip}:{s.dacp_port}/ctrl-int/1/{cmd}"
         try:
+            from urllib.parse import urlparse
             req = urllib.request.Request(
                 url,
                 headers={"Active-Remote": s.active_remote, "Connection": "close"},
             )
-            with urllib.request.urlopen(req, timeout=2) as resp:
+            parsed = urlparse(req.full_url if hasattr(req, "full_url") else req)
+
+            if parsed.scheme not in ("http", "https"):
+                raise ValueError(f"Unsupported URL scheme: {parsed.scheme}")
+
+            with urllib.request.urlopen(req, timeout=2) as resp:   # nosec B310
                 import logging
                 logging.getLogger("AirPlay").debug(
                     f"DACP /{cmd} → {resp.status}"
