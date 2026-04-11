@@ -156,7 +156,7 @@ jobs:
       - name: Prepare release folder
         run: |
           mkdir release
-          copy Output\AirPlayReceiverSetup.exe release\
+          copy install\windows\Output\AirPlayReceiverSetup.exe release\
 
       # ─────────────────────────────
       # SHA256 (installer)
