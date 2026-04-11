@@ -146,23 +146,23 @@ jobs:
       - name: Generate SHA256
         shell: powershell
         run: |
-          Get-FileHash release\AirPlayReceiver.exe -Algorithm SHA256 |
+          Get-FileHash release\AirPlayReceiver\AirPlayReceiver.exe -Algorithm SHA256 |
           ForEach-Object { $_.Hash } |
-          Out-File release\AirPlayReceiver.exe.sha256 -Encoding ascii
+          Out-File release\AirPlayReceiver\AirPlayReceiver.exe.sha256 -Encoding ascii
 
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v4
         with:
           name: AirPlayReceiver-Windows
-          path: release/
+          path: release/AirPlayReceiver
 
       - name: Upload to GitHub Release
         if: github.event_name == 'release'
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            release/AirPlayReceiver.exe
-            release/AirPlayReceiver.exe.sha256
+            release/AirPlayReceiver/AirPlayReceiver.exe
+            release/AirPlayReceiver/AirPlayReceiver.exe.sha256
 
 
 # ─────────────────────────────────────────────
