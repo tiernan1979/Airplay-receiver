@@ -16,6 +16,7 @@ from airplay_receiver.platform import THEME_FILE
 from airplay_receiver.raop import MdnsAdvertiser, RaopServer, find_free_tcp
 from airplay_receiver.themes import ThemeManager, write_default_theme_file
 from airplay_receiver.updater.ab_manager import swap_versions, get_executable
+from airplay_receiver.updater.updater import start_background_updater
 
 try:
     import pystray
@@ -140,8 +141,10 @@ def main() -> None:
     if TRAY_AVAILABLE:
         threading.Thread(target=run_tray, args=(ui,), daemon=True, name="tray").start()
 
-    updater = BackgroundUpdater(ui)
-    updater.start()
+    start_background_updater(
+        interval_seconds=86400,
+        callback=lambda result: ui.notify_update(result)
+    )
 
     try:
         root.mainloop()

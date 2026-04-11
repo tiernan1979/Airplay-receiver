@@ -528,6 +528,11 @@ class ModernUI:
             self._draw_bg(None)
         self._draw_transport()
 
+    # ── Notify Update ───────────────────────────────
+    def notify_update(self, result):
+        # show tray notification or popup
+        print("Update available:", result)
+
     # ── Tick (50ms animation + dirty-flag poll) ───────────────────────────────
     def _tick(self) -> None:
         if self._state.consume_dirty():

@@ -113,6 +113,9 @@ jobs:
           python-version: "3.12"
           cache: pip
 
+      # ─────────────────────────────
+      # INSTALL BUILD TOOLS
+      # ─────────────────────────────
       - name: Upgrade build tools
         run: python -m pip install --upgrade pip setuptools wheel
 
@@ -120,14 +123,15 @@ jobs:
         run: |
           pip install -e ".[dev]"
           pip install pyinstaller
+          choco install innosetup -y
 
       # ─────────────────────────────
-      # BUILD (ONEDIR)
+      # BUILD APP (ONEFILE)
       # ─────────────────────────────
       - name: Build main app
         run: |
           pyinstaller `
-            --onedir `
+            --onefile `
             --noconsole `
             --name AirPlayReceiver `
             --add-data "src/airplay_receiver;airplay_receiver" `
@@ -140,25 +144,29 @@ jobs:
             src/airplay_receiver/__main__.py
 
       # ─────────────────────────────
-      # PACKAGE (IMPORTANT FIX)
+      # BUILD INSTALLER (Inno Setup)
       # ─────────────────────────────
-      - name: Package release folder (ZIP)
-        shell: powershell
+      - name: Build installer
         run: |
-          mkdir release
-          Copy-Item -Recurse -Force dist\AirPlayReceiver release\AirPlayReceiver
-          Copy-Item README.md release\
-          Compress-Archive -Path release\AirPlayReceiver -DestinationPath AirPlayReceiver-Windows.zip
+          iscc install\windows\installer.iss
 
       # ─────────────────────────────
-      # SHA256
+      # PREPARE RELEASE FILES
+      # ─────────────────────────────
+      - name: Prepare release folder
+        run: |
+          mkdir release
+          copy Output\AirPlayReceiverSetup.exe release\
+
+      # ─────────────────────────────
+      # SHA256 (installer)
       # ─────────────────────────────
       - name: Generate SHA256
         shell: powershell
         run: |
-          Get-FileHash AirPlayReceiver-Windows.zip -Algorithm SHA256 |
+          Get-FileHash release\AirPlayReceiverSetup.exe -Algorithm SHA256 |
           ForEach-Object { $_.Hash } |
-          Out-File AirPlayReceiver-Windows.zip.sha256 -Encoding ascii
+          Out-File release\AirPlayReceiverSetup.exe.sha256 -Encoding ascii
 
       # ─────────────────────────────
       # UPLOAD ARTIFACT
@@ -167,7 +175,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: AirPlayReceiver-Windows
-          path: AirPlayReceiver-Windows.zip
+          path: release/
 
       # ─────────────────────────────
       # GITHUB RELEASE
@@ -177,8 +185,8 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            AirPlayReceiver-Windows.zip
-            AirPlayReceiver-Windows.zip.sha256
+            release/AirPlayReceiverSetup.exe
+            release/AirPlayReceiverSetup.exe.sha256
 
 # ─────────────────────────────────────────────
 # LINUX BUILD
