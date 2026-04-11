@@ -152,11 +152,10 @@ jobs:
             exit 1
           }
 
-      # ── Build MSI ──
       - name: Build MSI
         shell: powershell
         run: |
-          candle install\windows\installer.wxs install\windows\files.wxs
+          candle .\install\windows\installer.wxs .\install\windows\files.wxs
           light installer.wixobj files.wixobj -o AirPlayReceiver.msi
 
       - name: Package
