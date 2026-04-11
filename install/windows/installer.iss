@@ -8,7 +8,7 @@ Compression=lzma
 SolidCompression=yes
 
 [Files]
-Source: "dist\AirPlayReceiver.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\..\dist\AirPlayReceiver.exe"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\AirPlay Receiver"; Filename: "{app}\AirPlayReceiver.exe"
