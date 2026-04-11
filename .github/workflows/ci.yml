@@ -136,19 +136,10 @@ jobs:
             --hidden-import av `
             src/airplay_receiver/__main__.py
 
-      - name: Build Updater
-        run: |
-          pyinstaller `
-            --onefile `
-            --noconsole `
-            --name Updater `
-            src/updater/ui_updater.py
-
       - name: Prepare release folder
         run: |
           mkdir release
           copy dist\AirPlayReceiver\AirPlayReceiver.exe release\
-          copy dist\Updater.exe release\
           copy README.md release\
 
       # ─────────────────────────────
@@ -160,10 +151,6 @@ jobs:
           Get-FileHash release\AirPlayReceiver.exe -Algorithm SHA256 |
           ForEach-Object { $_.Hash } |
           Out-File release\AirPlayReceiverSetup.exe.sha256 -Encoding ascii
-
-          Get-FileHash release\Updater.exe -Algorithm SHA256 |
-          ForEach-Object { $_.Hash } |
-          Out-File release\Updater.exe.sha256 -Encoding ascii
 
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v4
@@ -177,7 +164,6 @@ jobs:
         with:
           files: |
             release/AirPlayReceiver.exe
-            release/Updater.exe
             release/*.sha256
 
 
@@ -234,23 +220,12 @@ jobs:
             src/airplay_receiver/__main__.py
 
       # ─────────────────────────────
-      # BUILD UPDATER (SAME CODEBASE)
-      # ─────────────────────────────
-      - name: Build Updater (Linux)
-        run: |
-          pyinstaller \
-            --onedir \
-            --name Updater \
-            src/updater/ui_updater.py
-
-      # ─────────────────────────────
       # PACKAGE
       # ─────────────────────────────
       - name: Package Linux
         run: |
           mkdir release
           cp -r dist/airplay-receiver release/
-          cp -r dist/Updater release/
           cp install/linux/install.sh release/
           cp README.md release/
           tar -czf AirPlayReceiver-Linux.tar.gz -C release .

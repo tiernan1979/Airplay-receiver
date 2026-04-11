@@ -7,7 +7,7 @@ from __future__ import annotations
 import threading
 import tkinter as tk
 import time
-
+import subprocess, sys, os
 
 from airplay_receiver.audio import AudioEngine, AUDIO_AVAILABLE, AV_AVAILABLE
 from airplay_receiver.config import init as config_init
@@ -15,6 +15,7 @@ from airplay_receiver.dacp import DacpDiscovery, DacpRemote
 from airplay_receiver.platform import THEME_FILE
 from airplay_receiver.raop import MdnsAdvertiser, RaopServer, find_free_tcp
 from airplay_receiver.themes import ThemeManager, write_default_theme_file
+from airplay_receiver.updater.ab_manager import swap_versions, get_executable
 
 try:
     import pystray
@@ -57,6 +58,25 @@ def run_tray(ui) -> None:
     )
     icon = pystray.Icon("AirPlay Receiver", img, "AirPlay Receiver", menu)
     icon.run()
+
+# ── Apply Update on Start ──────────────────────────────────────────────────────────────────────
+
+def apply_pending_update():
+    import shutil,os
+    flag = os.path.join(tempfile.gettempdir(), "airplay_pending_update")
+
+    if not os.path.exists(flag):
+        return
+
+    with open(flag) as f:
+        path = f.read().strip()
+
+    os.remove(flag)
+
+    install_dir = os.path.dirname(sys.executable)
+
+    # simple replace strategy
+    shutil.copy(path, os.path.join(install_dir, "AirPlayReceiver.exe"))
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 def main() -> None:
@@ -120,6 +140,9 @@ def main() -> None:
     if TRAY_AVAILABLE:
         threading.Thread(target=run_tray, args=(ui,), daemon=True, name="tray").start()
 
+    updater = BackgroundUpdater(ui)
+    updater.start()
+
     try:
         root.mainloop()
     finally:
@@ -131,4 +154,16 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+
+    # try swap first (safe point)
+    swapped = swap_versions()
+
+    try:
+        if swapped:
+            exe = get_executable()
+            subprocess.Popen([exe])
+            sys.exit(0)
+    except Exception:
+        pass
+
     main()
