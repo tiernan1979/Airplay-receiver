@@ -142,15 +142,13 @@ jobs:
       # ─────────────────────────────
       # PACKAGE (IMPORTANT FIX)
       # ─────────────────────────────
-      - name: Package release folder
+      - name: Package release folder (ZIP)
         shell: powershell
         run: |
-          $src = "dist\AirPlayReceiver"
-          $dst = "release\AirPlayReceiver"
-
-          New-Item -ItemType Directory -Force $dst | Out-Null
-          Copy-Item -Recurse -Force $src\* $dst\
+          mkdir release
+          Copy-Item -Recurse -Force dist\AirPlayReceiver release\AirPlayReceiver
           Copy-Item README.md release\
+          Compress-Archive -Path release\AirPlayReceiver -DestinationPath AirPlayReceiver-Windows.zip
 
       # ─────────────────────────────
       # SHA256
@@ -158,9 +156,9 @@ jobs:
       - name: Generate SHA256
         shell: powershell
         run: |
-          Get-FileHash release\AirPlayReceiver\AirPlayReceiver.exe -Algorithm SHA256 |
+          Get-FileHash AirPlayReceiver-Windows.zip -Algorithm SHA256 |
           ForEach-Object { $_.Hash } |
-          Out-File release\AirPlayReceiver\AirPlayReceiver.exe.sha256 -Encoding ascii
+          Out-File AirPlayReceiver-Windows.zip.sha256 -Encoding ascii
 
       # ─────────────────────────────
       # UPLOAD ARTIFACT
@@ -169,7 +167,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: AirPlayReceiver-Windows
-          path: release/AirPlayReceiver
+          path: AirPlayReceiver-Windows.zip
 
       # ─────────────────────────────
       # GITHUB RELEASE
@@ -179,8 +177,8 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            release/AirPlayReceiver/AirPlayReceiver.exe
-            release/AirPlayReceiver/AirPlayReceiver.exe.sha256
+            AirPlayReceiver-Windows.zip
+            AirPlayReceiver-Windows.zip.sha256
 
 # ─────────────────────────────────────────────
 # LINUX BUILD
