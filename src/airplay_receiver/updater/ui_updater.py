@@ -32,16 +32,16 @@ class UpdaterUI:
         self.root.mainloop()
 
     def get_latest(self):
-        r = requests.get(GITHUB_API, timeout=5)
+        r = requests.get(GITHUB_API, timeout=10)
         data = r.json()
         return data["tag_name"], data["assets"][0]["browser_download_url"]
 
     def get_sha256(url_sha):
-        r = requests.get(url_sha, timeout=5)
+        r = requests.get(url_sha, timeout=10)
         return r.text.split()[0].strip()
 
     def download(self, url, path):
-        with requests.get(url, stream=True) as r:
+        with requests.get(url, stream=True, timeout=15) as r:
             total = int(r.headers.get("content-length", 0))
             downloaded = 0
 
