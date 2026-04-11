@@ -139,7 +139,7 @@ jobs:
       - name: Prepare release folder
         run: |
           mkdir release
-          copy dist\AirPlayReceiver release\AirPlayReceiver\  /I /H /Y
+          xcopy dist\AirPlayReceiver release\AirPlayReceiver\ /E /I /H /Y
           copy README.md release\
 
       # ── SHA256 FIXED ──
