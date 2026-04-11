@@ -13,7 +13,7 @@ permissions:
   actions: read
 
 jobs:
-  # ── Security scanning ────────────────────────────────────────────────────────
+  # ── Security scanning ─────────────────────────────────────────────
   security:
     name: Security Scan
     runs-on: ubuntu-latest
@@ -25,40 +25,32 @@ jobs:
           python-version: "3.12"
           cache: pip
 
-      - name: Install security tools
-        run: pip install bandit[toml] safety pip-audit
+      - run: pip install bandit[toml] safety pip-audit
 
-      - name: Bandit — static code analysis
-        run: bandit -r src/ -c pyproject.toml -f json -o bandit-report.json || true
+      - run: bandit -r src/ -c pyproject.toml -f json -o bandit-report.json || true
+      - run: bandit -r src/ -c pyproject.toml -ll
 
-      - name: Bandit — print summary
-        run: bandit -r src/ -c pyproject.toml -ll
+      - run: pip-audit --requirement requirements.txt --format=json --output=audit-report.json || true
+      - run: pip-audit --requirement requirements.txt
 
-      - name: pip-audit — dependency vulnerability scan
-        run: pip-audit --requirement requirements.txt --format=json --output=audit-report.json || true
+      - run: safety check --file requirements.txt --short-report || true
 
-      - name: pip-audit — print summary
-        run: pip-audit --requirement requirements.txt
-
-      - name: Safety — check known CVEs
-        run: safety check --file requirements.txt --short-report || true
-
-      - name: Upload security reports
+      - uses: actions/upload-artifact@v4
         if: always()
-        uses: actions/upload-artifact@v4
         with:
           name: security-reports
           path: |
             bandit-report.json
             audit-report.json
 
-  # ── Tests ────────────────────────────────────────────────────────────────────
+  # ── Tests ─────────────────────────────────────────────────────────
   test:
     name: Tests (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
     strategy:
       matrix:
         python-version: ["3.10", "3.11", "3.12"]
+
     steps:
       - uses: actions/checkout@v4
 
@@ -67,32 +59,28 @@ jobs:
           python-version: ${{ matrix.python-version }}
           cache: pip
 
-      - name: Upgrade build tools
-        run: python -m pip install --upgrade pip setuptools wheel
+      - run: python -m pip install --upgrade pip setuptools wheel
 
-      - name: Install dependencies
-        run: |
+      - run: |
           pip install -e ".[dev]"
-          # Install headless alternatives for CI
           pip install pytest pytest-cov
 
-      - name: Run tests
-        run: pytest tests/ -v --cov=src/airplay_receiver --cov-report=xml
+      - run: pytest tests/ -v --cov=src/airplay_receiver --cov-report=xml
         env:
-          DISPLAY: ""   # no display needed — tests mock tkinter
+          DISPLAY: ""
 
-      - name: Upload coverage
+      - uses: codecov/codecov-action@v4
         if: matrix.python-version == '3.12'
-        uses: codecov/codecov-action@v4
         with:
           file: coverage.xml
           fail_ci_if_error: false
 
-  # ── Build Windows EXE ────────────────────────────────────────────────────────
+  # ── Windows MSI Build ─────────────────────────────────────────────
   build-windows:
-    name: Build Windows EXE
+    name: Build Windows MSI
     runs-on: windows-latest
     needs: [security, test]
+
     steps:
       - uses: actions/checkout@v4
 
@@ -101,20 +89,26 @@ jobs:
           python-version: "3.12"
           cache: pip
 
-      - name: Upgrade build tools
-        run: python -m pip install --upgrade pip setuptools wheel          
+      - run: python -m pip install --upgrade pip setuptools wheel
 
-      - name: Install dependencies + PyInstaller
+      - name: Install deps
         run: |
           pip install -e ".[dev]"
           pip install pyinstaller
 
-      - name: Install UPX
+      - name: Install tools (UPX + WiX)
         run: |
           choco install upx -y
           choco install wixtoolset -y
 
+      - name: Add WiX to PATH
+        shell: powershell
+        run: |
+          $env:Path += ";C:\Program Files (x86)\WiX Toolset v3.11\bin"
+
+      # ── Build app ──
       - name: Build EXE (onedir + compressed)
+        shell: powershell
         run: |
           pyinstaller `
             --onedir `
@@ -131,50 +125,62 @@ jobs:
             --exclude-module tkinter.test `
             --exclude-module unittest `
             --strip `
-            --upx-dir C:\ProgramData\chocolatey\lib\upx\tools\upx* `
+            --upx-dir "C:\ProgramData\chocolatey\lib\upx\tools" `
             src/airplay_receiver/__main__.py
-    
-    # ── Generate WiX file list (THIS WAS MISSING) ── 
-      - name: Generate WiX file list 
-        run: | 
-           heat dir dist\AirPlayReceiver ^
-             -cg AppFiles ^
-             -dr INSTALLFOLDER ^
-             -srd ^
-             -gg ^
-             -out install\windows\files.wxs
 
+      # ── Generate WiX file list ──
+      - name: Generate WiX file list
+        shell: powershell
+        run: |
+          heat dir dist\AirPlayReceiver `
+            -cg AppFiles `
+            -dr INSTALLFOLDER `
+            -srd `
+            -gg `
+            -out install\windows\files.wxs
+
+      # ── Verify EXE ──
       - name: Verify EXE
-        run: dist\AirPlayReceiver.exe --help 2>nul || echo "EXE built (exits non-zero without display)"
+        shell: powershell
+        run: |
+          if (Test-Path "dist\AirPlayReceiver\AirPlayReceiver.exe") {
+            Start-Process "dist\AirPlayReceiver\AirPlayReceiver.exe"
+            Start-Sleep -Seconds 2
+            Write-Host "EXE launched"
+          } else {
+            Write-Error "EXE missing"
+            exit 1
+          }
 
+      # ── Build MSI ──
       - name: Build MSI
+        shell: powershell
         run: |
           candle install\windows\installer.wxs install\windows\files.wxs
           light installer.wixobj files.wixobj -o AirPlayReceiver.msi
 
-      - name: Package with installer
+      - name: Package
         run: |
           mkdir release
           copy AirPlayReceiver.msi release\
           copy README.md release\
 
-      - name: Upload Windows artifact
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: AirPlayReceiver-Windows
           path: release/
 
-      - name: Upload to GitHub Release
+      - uses: softprops/action-gh-release@v2
         if: github.event_name == 'release'
-        uses: softprops/action-gh-release@v2
         with:
           files: AirPlayReceiver.msi
 
-  # ── Build Linux Binary ───────────────────────────────────────────────────────
+  # ── Linux Build ───────────────────────────────────────────────────
   build-linux:
-    name: Build Linux Binary
+    name: Build Linux Bundle
     runs-on: ubuntu-22.04
     needs: [security, test]
+
     steps:
       - uses: actions/checkout@v4
 
@@ -183,10 +189,9 @@ jobs:
           python-version: "3.12"
           cache: pip
 
-      - name: Upgrade build tools
-        run: python -m pip install --upgrade pip setuptools wheel          
+      - run: python -m pip install --upgrade pip setuptools wheel
 
-      - name: Install system deps (tkinter, audio, build tools)
+      - name: Install system deps
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y \
@@ -194,15 +199,14 @@ jobs:
             portaudio19-dev \
             libavcodec-dev libavformat-dev libswscale-dev \
             ffmpeg \
-            libgirepository1.0-dev \
-            patchelf
+            libgirepository1.0-dev
 
-      - name: Install Python deps + PyInstaller
+      - name: Install Python deps
         run: |
           pip install -e ".[dev]"
           pip install pyinstaller
 
-      - name: Build Linux binary
+      - name: Build Linux bundle
         run: |
           pyinstaller \
             --onedir \
@@ -216,27 +220,20 @@ jobs:
             --hidden-import av \
             src/airplay_receiver/__main__.py
 
-      - name: Test binary runs
-        run: |
-          chmod +x dist/airplay-receiver
-          timeout 3 dist/airplay-receiver || true
-
-      - name: Package with installer
+      - name: Package tar.gz
         run: |
           mkdir release
-          cp dist/airplay-receiver release/
+          cp -r dist/airplay-receiver release/
           cp install/linux/install.sh release/
           cp README.md release/
           tar -czf AirPlayReceiver-Linux.tar.gz -C release .
 
-      - name: Upload Linux artifact
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: AirPlayReceiver-Linux
           path: AirPlayReceiver-Linux.tar.gz
 
-      - name: Upload to GitHub Release
+      - uses: softprops/action-gh-release@v2
         if: github.event_name == 'release'
-        uses: softprops/action-gh-release@v2
         with:
           files: AirPlayReceiver-Linux.tar.gz

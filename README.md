@@ -1,6 +1,6 @@
 # AirPlay Receiver
 
-[![CI](https://github.com/YOUR_USERNAME/airplay-receiver/actions/workflows/ci.yml/badge.svg)](https://github.com/YOUR_USERNAME/airplay-receiver/actions)
+[![CI](https://github.com/YOUR_USERNAME/airplay-receiver/actions/workflows/ci.yml/badge.svg)](https://github.com/tiernan1979/airplay-receiver/actions)
 
 Cross-platform AirPlay / RAOP audio receiver with a modern UI.
 Built for use with **Music Assistant** (Home Assistant) but works with any AirPlay sender.
@@ -27,7 +27,7 @@ Download from [Releases](https://github.com/YOUR_USERNAME/airplay-receiver/relea
 
 | Platform | File | Notes |
 |----------|------|-------|
-| Windows  | `AirPlayReceiver.exe` + `Install_AirPlayReceiver.bat` | Run installer as Admin |
+| Windows  | `AirPlayReceiver.msi` | Run install as Admin |
 | Linux    | `AirPlayReceiver-Linux.tar.gz` | Run `./install.sh` |
 
 ### From source
@@ -35,7 +35,7 @@ Download from [Releases](https://github.com/YOUR_USERNAME/airplay-receiver/relea
 **Requirements:** Python 3.10+
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/airplay-receiver
+git clone https://github.com/tiernan1979/airplay-receiver
 cd airplay-receiver
 pip install -e .
 airplay-receiver
@@ -47,10 +47,10 @@ airplay-receiver
 
 ### Windows
 
-1. Download `AirPlayReceiver.exe` and `Install_AirPlayReceiver.bat`
-2. Run `Install_AirPlayReceiver.bat` **as Administrator**
+1. Download `AirPlayReceiver.msi`
+2. Run `AirPlayReceiver.msi` **as Administrator**
 3. The installer:
-   - Copies exe to `C:\ProgramData\AirPlayReceiver\`
+   - Copies exe to `C:\Program FIles\AirPlayReceiver\`
    - Creates Start Menu shortcut
    - Optionally adds to Windows Startup
    - Adds Windows Firewall rules
@@ -136,7 +136,7 @@ Edit `themes.json` (Settings → Open Theme File):
 ## Development
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/airplay-receiver
+git clone https://github.com/tiernan1979E/airplay-receiver
 cd airplay-receiver
 pip install -e ".[dev]"
 pytest tests/ -v
