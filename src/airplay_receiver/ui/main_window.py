@@ -15,17 +15,17 @@ try:
 except ImportError:
     PIL_AVAILABLE = False
 
-from ..platform import IS_WINDOWS, set_window_no_taskbar, set_window_alpha
-from .buttons   import make_sphere, make_small_circle, clear_cache
-from .colours   import rgb as _rgb, blend as _blend
-from .settings  import SettingsDialog
-from .widgets   import CanvasSlider
+from airplay_receiver.platform import IS_WINDOWS, set_window_no_taskbar, set_window_alpha
+from airplay_receiver.ui.buttons   import make_sphere, make_small_circle, clear_cache
+from airplay_receiver.ui.colours   import rgb as _rgb, blend as _blend
+from airplay_receiver.ui.settings  import SettingsDialog
+from airplay_receiver.ui.widgets   import CanvasSlider
 
 if TYPE_CHECKING:
-    from ..audio   import AudioEngine
-    from ..config  import Config, PlayerState
-    from ..dacp    import DacpRemote
-    from ..themes  import ThemeManager
+    from airplay_receiver.audio   import AudioEngine
+    from airplay_receiver.config  import Config, PlayerState
+    from airplay_receiver.dacp    import DacpRemote
+    from airplay_receiver.themes  import ThemeManager
 
 
 class ModernUI:

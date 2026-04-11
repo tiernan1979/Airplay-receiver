@@ -10,7 +10,7 @@ try:
 except ImportError:
     PIL_AVAILABLE = False
 
-from .colours import rgb as _rgb
+from airplay_receiver.ui.colours import rgb as _rgb
 
 # ── Cache ─────────────────────────────────────────────────────────────────────
 _cache: dict = {}

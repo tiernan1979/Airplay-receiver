@@ -13,7 +13,7 @@ try:
 except ImportError:
     PIL_AVAILABLE = False
 
-from .colours import rgb as _rgb, blend as _blend
+from airplay_receiver.ui.colours import rgb as _rgb, blend as _blend
 
 
 class CanvasSlider(tk.Canvas):

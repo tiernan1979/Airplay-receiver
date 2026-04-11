@@ -11,7 +11,7 @@ on:
 permissions:
   contents: write
   actions: read
-  
+
 jobs:
   # ── Security scanning ────────────────────────────────────────────────────────
   security:
@@ -109,10 +109,15 @@ jobs:
           pip install -e ".[dev]"
           pip install pyinstaller
 
-      - name: Build EXE
+      - name: Install UPX
+        run: |
+          choco install upx -y
+          choco install wixtoolset -y
+
+      - name: Build EXE (onedir + compressed)
         run: |
           pyinstaller `
-            --onefile `
+            --onedir `
             --noconsole `
             --name AirPlayReceiver `
             --icon install/windows/app.ico `
@@ -123,16 +128,34 @@ jobs:
             --hidden-import pystray `
             --hidden-import PIL `
             --hidden-import av `
+            --exclude-module tkinter.test `
+            --exclude-module unittest `
+            --strip `
+            --upx-dir C:\ProgramData\chocolatey\lib\upx\tools\upx* `
             src/airplay_receiver/__main__.py
+    
+    # ── Generate WiX file list (THIS WAS MISSING) ── 
+      - name: Generate WiX file list 
+        run: | 
+           heat dir dist\AirPlayReceiver ^
+             -cg AppFiles ^
+             -dr INSTALLFOLDER ^
+             -srd ^
+             -gg ^
+             -out install\windows\files.wxs
 
       - name: Verify EXE
         run: dist\AirPlayReceiver.exe --help 2>nul || echo "EXE built (exits non-zero without display)"
 
+      - name: Build MSI
+        run: |
+          candle install\windows\installer.wxs install\windows\files.wxs
+          light installer.wixobj files.wixobj -o AirPlayReceiver.msi
+
       - name: Package with installer
         run: |
           mkdir release
-          copy dist\AirPlayReceiver.exe release\
-          copy install\windows\Install_AirPlayReceiver.bat release\
+          copy AirPlayReceiver.msi release\
           copy README.md release\
 
       - name: Upload Windows artifact
@@ -145,9 +168,7 @@ jobs:
         if: github.event_name == 'release'
         uses: softprops/action-gh-release@v2
         with:
-          files: |
-            release/AirPlayReceiver.exe
-            release/Install_AirPlayReceiver.bat
+          files: AirPlayReceiver.msi
 
   # ── Build Linux Binary ───────────────────────────────────────────────────────
   build-linux:
@@ -184,7 +205,7 @@ jobs:
       - name: Build Linux binary
         run: |
           pyinstaller \
-            --onefile \
+            --onedir \
             --name airplay-receiver \
             --add-data "src/airplay_receiver:airplay_receiver" \
             --hidden-import sounddevice \

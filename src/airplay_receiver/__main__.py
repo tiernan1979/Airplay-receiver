@@ -110,7 +110,7 @@ def main() -> None:
     root = tk.Tk()
     root.withdraw()
 
-    from .ui.main_window import ModernUI
+    from airplay_receiver.ui.main_window import ModernUI
     ui = ModernUI(root, config, state, audio, dacp_remote, theme)
 
     if not config["start_minimised"]:

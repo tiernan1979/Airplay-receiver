@@ -8,13 +8,13 @@ import tkinter as tk
 from tkinter import ttk
 from typing import TYPE_CHECKING
 
-from ..platform import open_path, THEME_FILE, LOG_FILE
-from .buttons   import clear_cache
+from airplay_receiver.platform import open_path, THEME_FILE, LOG_FILE
+from airplay_receiver.ui.buttons import clear_cache
 
 if TYPE_CHECKING:
-    from ..config   import Config, PlayerState
-    from ..audio    import AudioEngine
-    from ..themes   import ThemeManager
+    from airplay_receiver.config   import Config, PlayerState
+    from airplay_receiver.audio    import AudioEngine
+    from airplay_receiver.themes   import ThemeManager
 
 
 class SettingsDialog:
@@ -228,7 +228,7 @@ class SettingsDialog:
         new_debug = self._debug_v.get()
         if new_debug != self._config.get("debug_mode", False):
             self._config["debug_mode"] = new_debug
-            from ..config import set_debug_mode
+            from airplay_receiver.config import set_debug_mode
             import logging
             set_debug_mode(new_debug, logging.getLogger("AirPlay"))
 
