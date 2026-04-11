@@ -144,13 +144,7 @@ jobs:
             --hidden-import av `
             --clean `
             src/airplay_receiver/__main__.py
-
-      - name: Check EXE architecture
-        run: |
-          powershell -Command "& { Get-ChildItem dist\AirPlayReceiver.exe | ForEach-Object { $_.VersionInfo } }"
-          # Or more precise:
-          powershell -Command "Add-Type -AssemblyName System.Reflection; $exe = [System.Reflection.Assembly]::LoadFile('dist\AirPlayReceiver.exe'); Write-Host 'Architecture:' $exe.GetName().ProcessorArchitecture"
-            
+           
       # ─────────────────────────────
       # BUILD INSTALLER (Inno Setup)
       # ─────────────────────────────
