@@ -184,7 +184,7 @@ jobs:
   # ─────────────────────────────────────────────
   # LINUX BUILD
   # ─────────────────────────────────────────────
-    build-linux:
+  build-linux:
     name: Build Linux
     runs-on: ubuntu-22.04
     needs: [security, test]
