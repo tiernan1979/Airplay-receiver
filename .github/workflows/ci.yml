@@ -184,7 +184,7 @@ jobs:
   # ─────────────────────────────────────────────
   # LINUX BUILD
   # ─────────────────────────────────────────────
-  build-linux:
+    build-linux:
     name: Build Linux
     runs-on: ubuntu-22.04
     needs: [security, test]
@@ -214,9 +214,12 @@ jobs:
       - name: Install Python deps
         run: |
           pip install -e ".[dev]"
-          pip install pyinstaller
+          pip install pyinstaller requests
 
-      - name: Build Linux binary
+      # ─────────────────────────────
+      # BUILD MAIN APP
+      # ─────────────────────────────
+      - name: Build Linux App
         run: |
           pyinstaller \
             --onedir \
@@ -230,21 +233,38 @@ jobs:
             --hidden-import av \
             src/airplay_receiver/__main__.py
 
+      # ─────────────────────────────
+      # BUILD UPDATER (SAME CODEBASE)
+      # ─────────────────────────────
+      - name: Build Updater (Linux)
+        run: |
+          pyinstaller \
+            --onedir \
+            --name Updater \
+            src/updater/ui_updater.py
+
+      # ─────────────────────────────
+      # PACKAGE
+      # ─────────────────────────────
       - name: Package Linux
         run: |
           mkdir release
           cp -r dist/airplay-receiver release/
+          cp -r dist/Updater release/
           cp install/linux/install.sh release/
           cp README.md release/
           tar -czf AirPlayReceiver-Linux.tar.gz -C release .
 
       # ─────────────────────────────
-      # SHA256 (Linux)
+      # SHA256
       # ─────────────────────────────
       - name: Generate SHA256
         run: |
           sha256sum AirPlayReceiver-Linux.tar.gz > AirPlayReceiver-Linux.tar.gz.sha256
 
+      # ─────────────────────────────
+      # RELEASE UPLOAD
+      # ─────────────────────────────
       - name: Upload Linux artifact
         uses: actions/upload-artifact@v4
         with:
