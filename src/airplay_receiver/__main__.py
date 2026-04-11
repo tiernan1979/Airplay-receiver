@@ -6,6 +6,8 @@ from __future__ import annotations
 
 import threading
 import tkinter as tk
+import time
+
 
 from airplay_receiver.audio import AudioEngine, AUDIO_AVAILABLE, AV_AVAILABLE
 from airplay_receiver.config import init as config_init
@@ -55,7 +57,6 @@ def run_tray(ui) -> None:
     )
     icon = pystray.Icon("AirPlay Receiver", img, "AirPlay Receiver", menu)
     icon.run()
-
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 def main() -> None:

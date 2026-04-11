@@ -13,10 +13,14 @@ permissions:
   actions: read
 
 jobs:
-  # ── Security scanning ─────────────────────────────────────────────
+
+  # ─────────────────────────────────────────────
+  # SECURITY SCAN
+  # ─────────────────────────────────────────────
   security:
     name: Security Scan
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v4
 
@@ -25,28 +29,41 @@ jobs:
           python-version: "3.12"
           cache: pip
 
-      - run: pip install bandit[toml] safety pip-audit
+      - name: Install security tools
+        run: pip install bandit[toml] safety pip-audit
 
-      - run: bandit -r src/ -c pyproject.toml -f json -o bandit-report.json || true
-      - run: bandit -r src/ -c pyproject.toml -ll
+      - name: Bandit scan
+        run: bandit -r src/ -c pyproject.toml -f json -o bandit-report.json || true
 
-      - run: pip-audit --requirement requirements.txt --format=json --output=audit-report.json || true
-      - run: pip-audit --requirement requirements.txt
+      - name: Bandit summary
+        run: bandit -r src/ -c pyproject.toml -ll
 
-      - run: safety check --file requirements.txt --short-report || true
+      - name: pip-audit scan
+        run: pip-audit --requirement requirements.txt --format=json --output=audit-report.json || true
 
-      - uses: actions/upload-artifact@v4
+      - name: pip-audit summary
+        run: pip-audit --requirement requirements.txt
+
+      - name: Safety check
+        run: safety check --file requirements.txt --short-report || true
+
+      - name: Upload reports
         if: always()
+        uses: actions/upload-artifact@v4
         with:
           name: security-reports
           path: |
             bandit-report.json
             audit-report.json
 
-  # ── Tests ─────────────────────────────────────────────────────────
+
+  # ─────────────────────────────────────────────
+  # TESTS
+  # ─────────────────────────────────────────────
   test:
-    name: Tests (Python ${{ matrix.python-version }})
+    name: Tests
     runs-on: ubuntu-latest
+
     strategy:
       matrix:
         python-version: ["3.10", "3.11", "3.12"]
@@ -59,25 +76,32 @@ jobs:
           python-version: ${{ matrix.python-version }}
           cache: pip
 
-      - run: python -m pip install --upgrade pip setuptools wheel
+      - name: Upgrade build tools
+        run: python -m pip install --upgrade pip setuptools wheel
 
-      - run: |
+      - name: Install dependencies
+        run: |
           pip install -e ".[dev]"
           pip install pytest pytest-cov
 
-      - run: pytest tests/ -v --cov=src/airplay_receiver --cov-report=xml
+      - name: Run tests
+        run: pytest tests/ -v --cov=src/airplay_receiver --cov-report=xml
         env:
           DISPLAY: ""
 
-      - uses: codecov/codecov-action@v4
+      - name: Upload coverage
         if: matrix.python-version == '3.12'
+        uses: codecov/codecov-action@v4
         with:
           file: coverage.xml
           fail_ci_if_error: false
 
-  # ── Windows MSI Build ─────────────────────────────────────────────
+
+  # ─────────────────────────────────────────────
+  # WINDOWS BUILD (APP + UPDATER)
+  # ─────────────────────────────────────────────
   build-windows:
-    name: Build Windows MSI
+    name: Build Windows
     runs-on: windows-latest
     needs: [security, test]
 
@@ -89,32 +113,20 @@ jobs:
           python-version: "3.12"
           cache: pip
 
-      - run: python -m pip install --upgrade pip setuptools wheel
+      - name: Upgrade build tools
+        run: python -m pip install --upgrade pip setuptools wheel
 
-      - name: Install deps
+      - name: Install dependencies
         run: |
           pip install -e ".[dev]"
           pip install pyinstaller
 
-      - name: Install tools (UPX + WiX)
-        run: |
-          choco install upx -y
-          choco install wixtoolset -y
-
-      - name: Add WiX to PATH
-        shell: powershell
-        run: |
-          $env:Path += ";C:\Program Files (x86)\WiX Toolset v3.11\bin"
-
-      # ── Build app ──
-      - name: Build EXE (onedir + compressed)
-        shell: powershell
+      - name: Build main app (onedir)
         run: |
           pyinstaller `
             --onedir `
             --noconsole `
             --name AirPlayReceiver `
-            --icon install/windows/app.ico `
             --add-data "src/airplay_receiver;airplay_receiver" `
             --hidden-import sounddevice `
             --hidden-import numpy `
@@ -122,61 +134,58 @@ jobs:
             --hidden-import pystray `
             --hidden-import PIL `
             --hidden-import av `
-            --exclude-module tkinter.test `
-            --exclude-module unittest `
-            --strip `
-            --upx-dir "C:\ProgramData\chocolatey\lib\upx\tools" `
             src/airplay_receiver/__main__.py
 
-      # ── Generate WiX file list ──
-      - name: Generate WiX file list
-        shell: powershell
+      - name: Build Updater
         run: |
-          heat dir dist\AirPlayReceiver `
-            -cg AppFiles `
-            -dr INSTALLFOLDER `
-            -srd `
-            -gg `
-            -out install\windows\files.wxs
+          pyinstaller `
+            --onefile `
+            --noconsole `
+            --name Updater `
+            src/updater/ui_updater.py
 
-      # ── Verify EXE ──
-      - name: Verify EXE
-        shell: powershell
-        run: |
-          if (Test-Path "dist\AirPlayReceiver\AirPlayReceiver.exe") {
-            Start-Process "dist\AirPlayReceiver\AirPlayReceiver.exe"
-            Start-Sleep -Seconds 2
-            Write-Host "EXE launched"
-          } else {
-            Write-Error "EXE missing"
-            exit 1
-          }
-
-      - name: Build MSI
-        shell: powershell
-        run: |
-          candle .\install\windows\installer.wxs .\install\windows\files.wxs
-          light installer.wixobj files.wixobj -o AirPlayReceiver.msi
-
-      - name: Package
+      - name: Prepare release folder
         run: |
           mkdir release
-          copy AirPlayReceiver.msi release\
+          copy dist\AirPlayReceiver\AirPlayReceiver.exe release\
+          copy dist\Updater.exe release\
           copy README.md release\
 
-      - uses: actions/upload-artifact@v4
+      # ─────────────────────────────
+      # SHA256 (Windows)
+      # ─────────────────────────────
+      - name: Generate SHA256
+        shell: powershell
+        run: |
+          Get-FileHash release\AirPlayReceiver.exe -Algorithm SHA256 |
+          ForEach-Object { $_.Hash } |
+          Out-File release\AirPlayReceiverSetup.exe.sha256 -Encoding ascii
+
+          Get-FileHash release\Updater.exe -Algorithm SHA256 |
+          ForEach-Object { $_.Hash } |
+          Out-File release\Updater.exe.sha256 -Encoding ascii
+
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
         with:
           name: AirPlayReceiver-Windows
           path: release/
 
-      - uses: softprops/action-gh-release@v2
+      - name: Upload to GitHub Release
         if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
         with:
-          files: AirPlayReceiver.msi
+          files: |
+            release/AirPlayReceiver.exe
+            release/Updater.exe
+            release/*.sha256
 
-  # ── Linux Build ───────────────────────────────────────────────────
+
+  # ─────────────────────────────────────────────
+  # LINUX BUILD
+  # ─────────────────────────────────────────────
   build-linux:
-    name: Build Linux Bundle
+    name: Build Linux
     runs-on: ubuntu-22.04
     needs: [security, test]
 
@@ -188,7 +197,8 @@ jobs:
           python-version: "3.12"
           cache: pip
 
-      - run: python -m pip install --upgrade pip setuptools wheel
+      - name: Upgrade build tools
+        run: python -m pip install --upgrade pip setuptools wheel
 
       - name: Install system deps
         run: |
@@ -198,14 +208,15 @@ jobs:
             portaudio19-dev \
             libavcodec-dev libavformat-dev libswscale-dev \
             ffmpeg \
-            libgirepository1.0-dev
+            libgirepository1.0-dev \
+            patchelf
 
       - name: Install Python deps
         run: |
           pip install -e ".[dev]"
           pip install pyinstaller
 
-      - name: Build Linux bundle
+      - name: Build Linux binary
         run: |
           pyinstaller \
             --onedir \
@@ -219,7 +230,7 @@ jobs:
             --hidden-import av \
             src/airplay_receiver/__main__.py
 
-      - name: Package tar.gz
+      - name: Package Linux
         run: |
           mkdir release
           cp -r dist/airplay-receiver release/
@@ -227,12 +238,23 @@ jobs:
           cp README.md release/
           tar -czf AirPlayReceiver-Linux.tar.gz -C release .
 
-      - uses: actions/upload-artifact@v4
+      # ─────────────────────────────
+      # SHA256 (Linux)
+      # ─────────────────────────────
+      - name: Generate SHA256
+        run: |
+          sha256sum AirPlayReceiver-Linux.tar.gz > AirPlayReceiver-Linux.tar.gz.sha256
+
+      - name: Upload Linux artifact
+        uses: actions/upload-artifact@v4
         with:
           name: AirPlayReceiver-Linux
           path: AirPlayReceiver-Linux.tar.gz
 
-      - uses: softprops/action-gh-release@v2
+      - name: Upload to GitHub Release
         if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
         with:
-          files: AirPlayReceiver-Linux.tar.gz
+          files: |
+            AirPlayReceiver-Linux.tar.gz
+            AirPlayReceiver-Linux.tar.gz.sha256
