@@ -173,7 +173,7 @@ class UpdaterUI:
         if sys.platform.startswith("win"):
             return subprocess.Popen([path])
         else:
-            os.chmod(path, 0o755)
+            os.chmod(path, 0o700)
             return subprocess.Popen([path])
 
     # ─────────────────────────────
@@ -197,8 +197,10 @@ class UpdaterUI:
         backup_dir = None
 
         try:
+            import tempfile
+
             installer = os.path.join(
-                os.environ.get("TEMP", "/tmp"),
+                tempfile.gettempdir(),
                 "AirPlayReceiverInstaller"
             )
 
