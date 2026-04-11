@@ -14,9 +14,9 @@ permissions:
 
 jobs:
 
-  # ─────────────────────────────────────────────
-  # SECURITY SCAN
-  # ─────────────────────────────────────────────
+# ─────────────────────────────────────────────
+# SECURITY SCAN
+# ─────────────────────────────────────────────
   security:
     name: Security Scan
     runs-on: ubuntu-latest
@@ -57,9 +57,9 @@ jobs:
             audit-report.json
 
 
-  # ─────────────────────────────────────────────
-  # TESTS
-  # ─────────────────────────────────────────────
+# ─────────────────────────────────────────────
+# TESTS
+# ─────────────────────────────────────────────
   test:
     name: Tests
     runs-on: ubuntu-latest
@@ -85,7 +85,7 @@ jobs:
           pip install pytest pytest-cov
 
       - name: Run tests
-        run: pytest tests/ -v --cov=src/airplay_receiver --cov-report=xml
+        run: pytest tests -v --cov=src/airplay_receiver --cov-report=xml
         env:
           DISPLAY: ""
 
@@ -97,9 +97,9 @@ jobs:
           fail_ci_if_error: false
 
 
-  # ─────────────────────────────────────────────
-  # WINDOWS BUILD (APP + UPDATER)
-  # ─────────────────────────────────────────────
+# ─────────────────────────────────────────────
+# WINDOWS BUILD
+# ─────────────────────────────────────────────
   build-windows:
     name: Build Windows
     runs-on: windows-latest
@@ -121,7 +121,7 @@ jobs:
           pip install -e ".[dev]"
           pip install pyinstaller
 
-      - name: Build main app (onedir)
+      - name: Build main app
         run: |
           pyinstaller `
             --onedir `
@@ -142,15 +142,13 @@ jobs:
           copy dist\AirPlayReceiver\AirPlayReceiver.exe release\
           copy README.md release\
 
-      # ─────────────────────────────
-      # SHA256 (Windows)
-      # ─────────────────────────────
+      # ── SHA256 FIXED ──
       - name: Generate SHA256
         shell: powershell
         run: |
           Get-FileHash release\AirPlayReceiver.exe -Algorithm SHA256 |
           ForEach-Object { $_.Hash } |
-          Out-File release\AirPlayReceiverSetup.exe.sha256 -Encoding ascii
+          Out-File release\AirPlayReceiver.exe.sha256 -Encoding ascii
 
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v4
@@ -164,12 +162,12 @@ jobs:
         with:
           files: |
             release/AirPlayReceiver.exe
-            release/*.sha256
+            release/AirPlayReceiver.exe.sha256
 
 
-  # ─────────────────────────────────────────────
-  # LINUX BUILD
-  # ─────────────────────────────────────────────
+# ─────────────────────────────────────────────
+# LINUX BUILD
+# ─────────────────────────────────────────────
   build-linux:
     name: Build Linux
     runs-on: ubuntu-22.04
@@ -202,9 +200,6 @@ jobs:
           pip install -e ".[dev]"
           pip install pyinstaller requests
 
-      # ─────────────────────────────
-      # BUILD MAIN APP
-      # ─────────────────────────────
       - name: Build Linux App
         run: |
           pyinstaller \
@@ -219,9 +214,6 @@ jobs:
             --hidden-import av \
             src/airplay_receiver/__main__.py
 
-      # ─────────────────────────────
-      # PACKAGE
-      # ─────────────────────────────
       - name: Package Linux
         run: |
           mkdir release
@@ -230,16 +222,10 @@ jobs:
           cp README.md release/
           tar -czf AirPlayReceiver-Linux.tar.gz -C release .
 
-      # ─────────────────────────────
-      # SHA256
-      # ─────────────────────────────
       - name: Generate SHA256
         run: |
           sha256sum AirPlayReceiver-Linux.tar.gz > AirPlayReceiver-Linux.tar.gz.sha256
 
-      # ─────────────────────────────
-      # RELEASE UPLOAD
-      # ─────────────────────────────
       - name: Upload Linux artifact
         uses: actions/upload-artifact@v4
         with:
