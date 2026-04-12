@@ -136,6 +136,7 @@ jobs:
             --noconsole `
             --name AirPlayReceiver `
             --add-data "src/airplay_receiver;airplay_receiver" `
+            --icon install/windows/app.ico `
             --hidden-import sounddevice `
             --hidden-import numpy `
             --hidden-import zeroconf `

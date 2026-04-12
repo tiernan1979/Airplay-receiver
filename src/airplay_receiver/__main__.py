@@ -9,14 +9,14 @@ import tkinter as tk
 import time
 import subprocess, sys, os
 
+import requests
+
 from airplay_receiver.audio import AudioEngine, AUDIO_AVAILABLE, AV_AVAILABLE
 from airplay_receiver.config import init as config_init
 from airplay_receiver.dacp import DacpDiscovery, DacpRemote
 from airplay_receiver.platform import THEME_FILE
 from airplay_receiver.raop import MdnsAdvertiser, RaopServer, find_free_tcp
 from airplay_receiver.themes import ThemeManager, write_default_theme_file
-from airplay_receiver.updater.ab_manager import swap_versions, get_executable
-from airplay_receiver.updater.updater import start_background_updater
 
 try:
     import pystray
@@ -46,19 +46,39 @@ def _tray_icon_img(accent: str = "#8b5cf6") -> "Image.Image":
     d.text((sz//2, sz//2), "♫", fill=(255, 255, 255, 200), anchor="mm")
     return img
 
+def safe_call(root, fn):
+    root.after(0, fn)
 
 def run_tray(ui) -> None:
     if not TRAY_AVAILABLE:
         return
-    from .themes import ThemeManager
-    T   = ui._theme
+
+    import pystray
+
+    T = ui._theme
     img = _tray_icon_img(T["accent"])
+
+    def open_app(icon, item):
+        ui.root.after(0, ui.show)
+
+    def quit_app(icon, item):
+        icon.stop()
+        ui.root.after(0, ui.quit_app)
+
     menu = pystray.Menu(
-        pystray.MenuItem("Open",  lambda *_: ui.root.after(0, ui.show), default=True),
-        pystray.MenuItem("Quit",  lambda icon, *_: (icon.stop(), ui.root.after(0, ui.quit_app))),
+        pystray.MenuItem("Open", open_app, default=True),
+        pystray.MenuItem("Quit", quit_app),
     )
-    icon = pystray.Icon("AirPlay Receiver", img, "AirPlay Receiver", menu)
-    icon.run()
+
+    icon = pystray.Icon(
+        "AirPlay Receiver",
+        img,
+        "AirPlay Receiver",
+        menu
+    )
+
+    # IMPORTANT: don't rely on daemon thread exiting
+    icon.run_detached()  # MUCH more stable on Windows
 
 # ── Apply Update on Start ──────────────────────────────────────────────────────────────────────
 
@@ -138,13 +158,18 @@ def main() -> None:
     if not config["start_minimised"]:
         root.after(200, ui.show)
 
-    if TRAY_AVAILABLE:
-        threading.Thread(target=run_tray, args=(ui,), daemon=True, name="tray").start()
+    tray_thread = None
 
-    start_background_updater(
-        interval_seconds=86400,
-        callback=lambda result: ui.notify_update(result)
-    )
+    if TRAY_AVAILABLE:
+        if getattr(sys, "frozen", False):
+            time.sleep(0.5)
+        tray_thread = threading.Thread(
+            target=run_tray,
+            args=(ui,),
+            name="tray",
+            daemon=False  # IMPORTANT
+        )
+        tray_thread.start()
 
     try:
         root.mainloop()
@@ -155,18 +180,6 @@ def main() -> None:
         audio.stop()
         config.save()
 
-
 if __name__ == "__main__":
-
-    # try swap first (safe point)
-    swapped = swap_versions()
-
-    try:
-        if swapped:
-            exe = get_executable()
-            subprocess.Popen([exe])
-            sys.exit(0)
-    except Exception:
-        pass
 
     main()
