@@ -10,7 +10,7 @@ UninstallDisplayIcon={app}\AirPlayReceiver.exe
 DisableDirPage=no
 RestartApplications=yes
 CloseApplications=yes
-SetupIconFile=install\windows\app.ico
+SetupIconFile=app.ico
 
 [Files]
 Source: "..\..\dist\AirPlayReceiver.exe"; DestDir: "{app}"; Flags: ignoreversion
