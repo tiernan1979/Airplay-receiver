@@ -10,7 +10,9 @@ UninstallDisplayIcon={app}\AirPlayReceiver.exe
 DisableDirPage=no
 RestartApplications=yes
 CloseApplications=yes
-SetupIconFile=app.ico
+ArchitecturesAllowed=x64compatible
+ArchitecturesInstallIn64BitMode=x64compatible
+DefaultArchitecture=x64
 
 [Files]
 Source: "..\..\dist\AirPlayReceiver.exe"; DestDir: "{app}"; Flags: ignoreversion

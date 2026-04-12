@@ -29,22 +29,14 @@ PREFERRED_PORT = 7000
 
 
 # ── System tray ───────────────────────────────────────────────────────────────
-def _tray_icon_img(accent: str = "#8b5cf6") -> "Image.Image":
-    from PIL import Image, ImageDraw
-    from .ui.colours import rgb as _rgb
-    sz  = 64
-    img = Image.new("RGBA", (sz, sz), (0, 0, 0, 0))
-    d   = ImageDraw.Draw(img)
-    r, g, b = _rgb(accent)
-    for i in range(sz // 2, 0, -1):
-        t  = i / (sz // 2)
-        factor = 0.8 + 0.4 * (1 - t)
-        d.ellipse([sz//2-i, sz//2-i, sz//2+i, sz//2+i],
-                  fill=(min(255, int(r*factor)),
-                        min(255, int(g*factor)),
-                        min(255, int(b*factor)), 255))
-    d.text((sz//2, sz//2), "♫", fill=(255, 255, 255, 200), anchor="mm")
-    return img
+def get_tray_icon():
+    if getattr(sys, "frozen", False):
+        base = sys._MEIPASS
+        path = os.path.join(base, "app.ico")
+    else:
+        path = "install/windows/app.ico"
+
+    return Image.open(path)
 
 def safe_call(root, fn):
     root.after(0, fn)
@@ -56,7 +48,7 @@ def run_tray(ui) -> None:
     import pystray
 
     T = ui._theme
-    img = _tray_icon_img(T["accent"])
+    img = get_tray_icon()
 
     def open_app(icon, item):
         ui.root.after(0, ui.show)
