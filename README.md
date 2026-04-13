@@ -1,6 +1,6 @@
 # AirPlay Receiver
 
-[![CI](https://github.com/YOUR_USERNAME/airplay-receiver/actions/workflows/ci.yml/badge.svg)](https://github.com/tiernan1979/airplay-receiver/actions)
+[![CI](https://github.com/tiernan1979/airplay-receiver/actions/workflows/ci.yml/badge.svg)](https://github.com/tiernan1979/airplay-receiver/actions)
 
 Cross-platform AirPlay / RAOP audio receiver with a modern UI.
 Built for use with **Music Assistant** (Home Assistant) but works with any AirPlay sender.
