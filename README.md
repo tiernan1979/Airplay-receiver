@@ -23,11 +23,11 @@ Built for use with **Music Assistant** (Home Assistant) but works with any AirPl
 
 ### Pre-built binaries (recommended)
 
-Download from [Releases](https://github.com/YOUR_USERNAME/airplay-receiver/releases):
+Download from [Releases](https://github.com/tiernan1979/airplay-receiver/releases):
 
 | Platform | File | Notes |
 |----------|------|-------|
-| Windows  | `AirPlayReceiver.msi` | Run install as Admin |
+| Windows  | `AirPlayReceiverSetup.exe` | Run install as Admin |
 | Linux    | `AirPlayReceiver-Linux.tar.gz` | Run `./install.sh` |
 
 ### From source
@@ -47,13 +47,11 @@ airplay-receiver
 
 ### Windows
 
-1. Download `AirPlayReceiver.msi`
-2. Run `AirPlayReceiver.msi` **as Administrator**
+1. Download `AirPlayReceiverSetup.exe`
+2. Run `AirPlayReceiverSetup.exe` **as Administrator**
 3. The installer:
-   - Copies exe to `C:\Program FIles\AirPlayReceiver\`
+   - Copies exe to `C:\Program Files\AirPlayReceiver\`
    - Creates Start Menu shortcut
-   - Optionally adds to Windows Startup
-   - Adds Windows Firewall rules
 
 ### Linux
 
