@@ -33,15 +33,21 @@ def _theme_qss(T: dict) -> str:
     QLabel {{ color: {fg}; background: transparent; }}
     QLineEdit {{
         background: {card}; color: {fg}; border: 1px solid {border};
-        border-radius: 4px; padding: 6px 10px; font-size: 10pt;
+        border-radius: 4px; padding: 8px 12px; font-size: 15pt;
         selection-background-color: {accent};
     }}
     QComboBox {{
         background: {card}; color: {fg}; border: 1px solid {border};
-        border-radius: 4px; padding: 6px 10px; font-size: 10pt;
+        border-radius: 4px; padding: 8px 12px; font-size: 15pt;
     }}
     QComboBox::drop-down {{
-        border: none; padding-right: 8px;
+        subcontrol-origin: padding;
+        subcontrol-position: top right;
+        width: 32px;
+        border-left: 1px solid {border};
+        border-top-right-radius: 4px;
+        border-bottom-right-radius: 4px;
+        background: {card2};
     }}
     QComboBox QAbstractItemView {{
         background: {card}; color: {fg}; selection-background-color: {accent};
@@ -49,7 +55,7 @@ def _theme_qss(T: dict) -> str:
     }}
     QPushButton {{
         background: {card2}; color: {fg}; border: none;
-        border-radius: 4px; padding: 8px 16px; font-size: 10pt;
+        border-radius: 4px; padding: 10px 20px; font-size: 15pt;
     }}
     QPushButton:hover {{ background: {border}; }}
     QPushButton:pressed {{ background: {accent}; color: white; }}
@@ -64,7 +70,7 @@ def _theme_qss(T: dict) -> str:
     QCheckBox::indicator:checked {{
         background: {accent}; border-color: {accent};
     }}
-    QFrame[frameShape="4"] {{  /* HLine */
+    QFrame[frameShape="4"] {{
         color: {border};
     }}
     """
@@ -93,14 +99,13 @@ class SettingsDialog(QDialog):
         T = theme
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.Dialog)
         self.setAttribute(Qt.WA_TranslucentBackground, False)
-        self.setFixedSize(420, 530)
+        self.setFixedSize(480, 620)
         self.setStyleSheet(_theme_qss(T._t))
 
-        # Centre over parent
         if parent:
             px, py = parent.x(), parent.y()
             pw, ph = parent.width(), parent.height()
-            self.move(px + (pw - 420) // 2, py + (ph - 530) // 2)
+            self.move(px + (pw - 480) // 2, py + (ph - 620) // 2)
 
         self._build_titlebar(T)
         self._build_body(T)
@@ -108,26 +113,28 @@ class SettingsDialog(QDialog):
     # ── Titlebar ──────────────────────────────────────────────────────────────
     def _build_titlebar(self, T: dict) -> None:
         tb = QFrame(self)
-        tb.setFixedHeight(36)
+        tb.setFixedHeight(40)
         tb.setStyleSheet(f"background: {T['tbarbg']};")
         tb.move(0, 0)
-        tb.resize(420, 36)
+        tb.resize(480, 40)
 
         accent_bar = QFrame(tb)
         accent_bar.setFixedWidth(3)
         accent_bar.setStyleSheet(f"background: {T['accent']};")
         accent_bar.move(0, 0)
-        accent_bar.resize(3, 36)
+        accent_bar.resize(3, 40)
 
-        lbl = QLabel("  ⚙  SETTINGS", tb)
-        lbl.setStyleSheet(f"color: {T['muted']}; font: 7pt 'Courier New'; font-weight: bold; background: transparent;")
+        lbl = QLabel("  \u2699  SETTINGS", tb)
+        lbl.setStyleSheet(
+            f"color: {T['muted']}; font: 12pt 'Courier New'; font-weight: bold; background: transparent;"
+        )
         lbl.move(10, 10)
 
-        close_btn = QPushButton("  ✕  ", tb)
-        close_btn.setFixedSize(40, 36)
-        close_btn.move(420 - 40, 0)
+        close_btn = QPushButton("  \u2715  ", tb)
+        close_btn.setFixedSize(44, 40)
+        close_btn.move(480 - 44, 0)
         close_btn.setStyleSheet(f"""
-            QPushButton {{ background: transparent; color: {T['muted']}; font: 10pt 'Segoe UI'; border: none; }}
+            QPushButton {{ background: transparent; color: {T['muted']}; font: 15pt 'Segoe UI'; border: none; }}
             QPushButton:hover {{ background: {T['accent2']}; color: white; }}
         """)
         close_btn.clicked.connect(self.close)
@@ -136,7 +143,7 @@ class SettingsDialog(QDialog):
         close_btn.raise_()
 
     def mousePressEvent(self, event) -> None:
-        if event.position().y() < 36:
+        if event.position().y() < 40:
             self._drag_pos = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
             event.accept()
 
@@ -151,29 +158,30 @@ class SettingsDialog(QDialog):
     # ── Body ──────────────────────────────────────────────────────────────────
     def _build_body(self, T: dict) -> None:
         container = QWidget(self)
-        container.setGeometry(0, 36, 420, 530 - 36)
+        container.setGeometry(0, 40, 480, 620 - 40)
 
         layout = QVBoxLayout(container)
-        layout.setContentsMargins(20, 10, 20, 20)
-        layout.setSpacing(0)
+        layout.setContentsMargins(24, 14, 24, 20)
+        layout.setSpacing(14)
 
         def section_header(text: str) -> None:
             lbl = QLabel(text)
-            lbl.setStyleSheet(f"color: {T['teal']}; font: 7pt 'Courier New'; font-weight: bold;")
+            lbl.setStyleSheet(
+                f"color: {T['teal']}; font: 12pt 'Courier New'; font-weight: bold;"
+            )
             layout.addWidget(lbl)
-            layout.addSpacing(4)
+            layout.addSpacing(6)
 
         # Device name
         section_header("DEVICE NAME  (restart required)")
         name_edit = QLineEdit(self._config["device_name"])
         layout.addWidget(name_edit)
         self._name_edit = name_edit
-        layout.addSpacing(8)
 
         # Theme
         section_header("THEME")
         names = self._theme.names()
-        cur   = self._config["theme"] if self._config["theme"] in names else "Indigo Night"
+        cur = self._config["theme"] if self._config["theme"] in names else "Indigo Night"
         theme_cb = QComboBox()
         theme_cb.addItems(names)
         theme_cb.setCurrentText(cur)
@@ -181,15 +189,14 @@ class SettingsDialog(QDialog):
         self._theme_cb = theme_cb
 
         theme_path_lbl = QLabel(f"Custom themes: {THEME_FILE}")
-        theme_path_lbl.setStyleSheet(f"color: {T['muted']}; font: 6pt 'Courier New';")
+        theme_path_lbl.setStyleSheet(f"color: {T['muted']}; font: 11pt 'Courier New';")
         layout.addWidget(theme_path_lbl)
-        layout.addSpacing(8)
 
         # Audio device
         section_header("AUDIO OUTPUT  (optical / S-PDIF)")
         devs = self._audio.list_devices()
-        dn   = ["Default (system)"] + [d[1] for d in devs]
-        di   = [None] + [d[0] for d in devs]
+        dn = ["Default (system)"] + [d[1] for d in devs]
+        di = [None] + [d[0] for d in devs]
         cur_d = di.index(self._config["audio_device"]) if self._config["audio_device"] in di else 0
 
         audio_cb = QComboBox()
@@ -199,7 +206,6 @@ class SettingsDialog(QDialog):
         self._audio_cb = audio_cb
         self._audio_dn = dn
         self._audio_di = di
-        layout.addSpacing(8)
 
         # Audio status
         section_header("AUDIO STATUS")
@@ -207,19 +213,17 @@ class SettingsDialog(QDialog):
         src = self._audio.SRC_RATE
         dst = self._audio._dst_rate
         resample_text = (
-            f"✓  {src} Hz  (no resampling)" if src == dst
-            else f"↕  {src} Hz → {dst} Hz  (resampling)"
+            f"\u2713  {src} Hz  (no resampling)" if src == dst
+            else f"\u2195  {src} Hz \u2192 {dst} Hz  (resampling)"
         )
         resample_col = T["green"] if src == dst else T["amber"]
-        alac_txt = "✓  PyAV — ALAC decoding active" if self._alac_ok() else "✗  pip install av  — REQUIRED"
+        alac_txt = "\u2713  PyAV \u2014 ALAC decoding active" if self._alac_ok() else "\u2717  pip install av  \u2014 REQUIRED"
         alac_col = T["green"] if self._alac_ok() else T["accent2"]
 
         for txt, col in [(resample_text, resample_col), (alac_txt, alac_col)]:
             lbl = QLabel(txt)
-            lbl.setStyleSheet(f"color: {col}; font: 7pt 'Courier New';")
+            lbl.setStyleSheet(f"color: {col}; font: 12pt 'Courier New';")
             layout.addWidget(lbl)
-
-        layout.addSpacing(8)
 
         # Developer
         section_header("DEVELOPER")
@@ -233,40 +237,37 @@ class SettingsDialog(QDialog):
         dbg_layout.addWidget(self._dbg_btn)
 
         dbg_lbl = QLabel("  Verbose RTSP/RTP/DACP logging")
-        dbg_lbl.setStyleSheet(f"color: {T['muted']}; font: 6pt 'Courier New';")
+        dbg_lbl.setStyleSheet(f"color: {T['muted']}; font: 11pt 'Courier New';")
         dbg_layout.addWidget(dbg_lbl)
         dbg_layout.addStretch()
         layout.addLayout(dbg_layout)
 
-        log_lbl = QLabel(f"Log: {LOG_FILE}")
-        log_lbl.setStyleSheet(f"color: {T['muted']}; font: 6pt 'Courier New';")
-        layout.addWidget(log_lbl)
-
-        open_log_btn = QPushButton("Open Log File")
-        open_log_btn.clicked.connect(lambda: open_path(LOG_FILE))
-        layout.addWidget(open_log_btn)
-
         layout.addStretch()
 
-        # Divider + buttons
+        # Divider
         divider = QFrame()
         divider.setFrameShape(QFrame.HLine)
         divider.setFixedHeight(1)
         divider.setStyleSheet(f"color: {T['border']}; background: {T['border']};")
         layout.addWidget(divider)
-        layout.addSpacing(8)
+        layout.addSpacing(10)
 
+        # Bottom buttons
         btn_layout = QHBoxLayout()
         btn_layout.setContentsMargins(0, 0, 0, 0)
 
         save_btn = QPushButton("Save")
         save_btn.setStyleSheet(f"""
             QPushButton {{ background: {T['accent']}; color: white; border: none;
-                border-radius: 4px; padding: 8px 16px; font-size: 10pt; }}
+                border-radius: 4px; padding: 10px 20px; font-size: 15pt; }}
             QPushButton:hover {{ background: {T['accent2']}; }}
         """)
         save_btn.clicked.connect(self._save)
         btn_layout.addWidget(save_btn)
+
+        open_log_btn = QPushButton("Open Log File")
+        open_log_btn.clicked.connect(lambda: open_path(LOG_FILE))
+        btn_layout.addWidget(open_log_btn)
 
         open_theme_btn = QPushButton("Open Theme File")
         open_theme_btn.clicked.connect(lambda: open_path(THEME_FILE))
@@ -279,19 +280,18 @@ class SettingsDialog(QDialog):
         layout.addLayout(btn_layout)
 
     def _dbg_style(self, on: bool, T: dict) -> str:
-        bg = T["teal"] if on else T["card2"]
-        fg = T["bg"] if on else T["muted"]
+        bg = T["teal"] if on else T["card"]
+        fg = "white" if on else T["text"]
         return f"""
             QPushButton {{ background: {bg}; color: {fg}; border: none;
-                border-radius: 4px; padding: 6px 12px; font: 7pt 'Courier New'; font-weight: bold; }}
+                border-radius: 4px; padding: 8px 16px; font: 12pt 'Courier New'; font-weight: bold; }}
             QPushButton:hover {{ background: {T['border']}; }}
         """
 
-    # ── Helpers ───────────────────────────────────────────────────────────────
     @staticmethod
     def _alac_ok() -> bool:
         try:
-            import av  # noqa: F401
+            import av
             return True
         except ImportError:
             return False
