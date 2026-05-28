@@ -5,9 +5,9 @@ Rendered with QPainter (no PIL dependency) for better memory efficiency.
 """
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, QPointF, Signal
+from PySide6.QtCore import Qt, QPointF, Signal, QRectF
 from PySide6.QtGui import (
-    QPainter, QPainterPath, QRadialGradient, QColor, QPen, QBrush,
+    QPainter, QPainterPath, QRadialGradient, QColor, QPen, QBrush, QFont,
 )
 from PySide6.QtWidgets import QAbstractButton
 
@@ -30,6 +30,7 @@ class SphereButton(QAbstractButton):
         self._accent  = QColor(accent)
         self._accent2 = QColor(accent2)
         self._hover   = False
+        self._playing = False
         self.setFixedSize(self.SPHERE_SIZE + self.PAD * 2,
                           self.SPHERE_SIZE + self.PAD * 2)
         self.setCursor(Qt.PointingHandCursor)
@@ -121,6 +122,32 @@ class SphereButton(QAbstractButton):
         p.setClipPath(clip)
         p.drawEllipse(QPointF(cx, cy + r * 0.3), r * 0.7, r * 0.25)
 
+        p.setClipping(False)
+
+        # Play / pause icon
+        icon_col = QColor(255, 255, 255, 220)
+        p.setPen(Qt.NoPen)
+        p.setBrush(icon_col)
+
+        if self._playing:
+            bar_w = r * 0.22
+            bar_h = r * 0.55
+            gap   = r * 0.12
+            bx    = cx - bar_w - gap * 0.5
+            p.drawRoundedRect(QRectF(bx, cy - bar_h * 0.5, bar_w, bar_h),
+                              bar_w * 0.4, bar_w * 0.4)
+            bx    = cx + gap * 0.5
+            p.drawRoundedRect(QRectF(bx, cy - bar_h * 0.5, bar_w, bar_h),
+                              bar_w * 0.4, bar_w * 0.4)
+        else:
+            path = QPainterPath()
+            sz = r * 0.38
+            path.moveTo(cx - sz * 0.5, cy - sz * 0.75)
+            path.lineTo(cx - sz * 0.5, cy + sz * 0.75)
+            path.lineTo(cx + sz * 0.7, cy)
+            path.closeSubpath()
+            p.drawPath(path)
+
         p.end()
 
     def enterEvent(self, event) -> None:
@@ -141,6 +168,10 @@ class SphereButton(QAbstractButton):
         if self.rect().contains(event.pos()):
             self.clicked_signal.emit()
 
+    def set_playing(self, playing: bool) -> None:
+        self._playing = playing
+        self.update()
+
     def update_theme(self, accent: str, accent2: str) -> None:
         self._accent  = QColor(accent)
         self._accent2 = QColor(accent2)
@@ -160,11 +191,13 @@ class SmallCircleButton(QAbstractButton):
         card2: str,
         accent: str,
         parent=None,
+        direction: str = "prev",
     ) -> None:
         super().__init__(parent)
         self._card2_col = QColor(card2)
         self._accent_col = QColor(accent)
         self._hover = False
+        self._direction = direction  # "prev" or "next"
         self.setFixedSize(self.CIRCLE_SIZE + self.PAD * 2,
                           self.CIRCLE_SIZE + self.PAD * 2)
         self.setCursor(Qt.PointingHandCursor)
@@ -191,6 +224,40 @@ class SmallCircleButton(QAbstractButton):
         p.setBrush(QColor(cr, cg, cb, 220))
         p.setPen(Qt.NoPen)
         p.drawEllipse(QPointF(cx, cy), r, r)
+
+        # Arrow
+        arrow_col = self._accent_col
+        p.setBrush(arrow_col)
+        p.setPen(QPen(arrow_col, 2))
+        ah = r * 0.35
+        aw = r * 0.30
+
+        if self._direction == "prev":
+            # Left-pointing triangle
+            path = QPainterPath()
+            path.moveTo(cx - aw, cy)
+            path.lineTo(cx + aw, cy - ah)
+            path.lineTo(cx + aw, cy + ah)
+            path.closeSubpath()
+            p.drawPath(path)
+            # Bar
+            bx = cx - aw - ah * 0.35
+            p.setPen(Qt.NoPen)
+            p.drawRoundedRect(QRectF(bx, cy - ah, ah * 0.25, ah * 2),
+                              ah * 0.08, ah * 0.08)
+        else:
+            # Right-pointing triangle
+            path = QPainterPath()
+            path.moveTo(cx + aw, cy)
+            path.lineTo(cx - aw, cy - ah)
+            path.lineTo(cx - aw, cy + ah)
+            path.closeSubpath()
+            p.drawPath(path)
+            # Bar
+            bx = cx + aw - ah * 0.35
+            p.setPen(Qt.NoPen)
+            p.drawRoundedRect(QRectF(bx, cy - ah, ah * 0.25, ah * 2),
+                              ah * 0.08, ah * 0.08)
 
         p.end()
 

@@ -127,13 +127,13 @@ class ModernUI(QWidget):
         self._vol_slider.valueChanged.connect(self._on_vol)
 
         # Transport buttons
-        self._btn_prev = SmallCircleButton(T["card2"], T["accent"], self)
+        self._btn_prev = SmallCircleButton(T["card2"], T["accent"], self, "prev")
         self._btn_prev.clicked_signal.connect(lambda: self._dacp.prev_track())
 
         self._btn_play = SphereButton(T["accent"], T["accent2"], self)
         self._btn_play.clicked_signal.connect(self._play_pause)
 
-        self._btn_next = SmallCircleButton(T["card2"], T["accent"], self)
+        self._btn_next = SmallCircleButton(T["card2"], T["accent"], self, "next")
         self._btn_next.clicked_signal.connect(lambda: self._dacp.next_track())
 
         # Bottom bar
@@ -508,6 +508,10 @@ class ModernUI(QWidget):
         if self._bg_art is not None:
             self._bg_art = None
             self._bg_pixmap = self._render_bg_pixmap(None)
+        if self._art_pixmap is None:
+            self._art_pixmap = self._render_default_art()
+        if self._bg_pixmap is None:
+            self._bg_pixmap = self._render_bg_pixmap(None)
         self.update()
 
     # ── Button icon update ────────────────────────────────────────────────────
@@ -515,6 +519,7 @@ class ModernUI(QWidget):
         T = self._theme
         accent = T["accent2"] if self._state.playing else T["accent"]
         self._btn_play.update_theme(accent, T["accent2"])
+        self._btn_play.set_playing(self._state.playing)
 
     # ── Tick (50ms animation + dirty-flag poll) ───────────────────────────────
     def _tick(self) -> None:
@@ -564,10 +569,11 @@ class ModernUI(QWidget):
 
     # ── Settings ──────────────────────────────────────────────────────────────
     def _open_settings(self) -> None:
-        SettingsDialog(
+        dlg = SettingsDialog(
             self, self._config, self._state,
             self._audio, self._theme, ui_ref=self,
         )
+        dlg.exec()
 
     # ── Retheme ───────────────────────────────────────────────────────────────
     def retheme(self) -> None:
