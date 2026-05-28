@@ -5,11 +5,7 @@ Rendered with QPainter (no PIL dependency) for better memory efficiency.
 """
 from __future__ import annotations
 
-<<<<<<< HEAD
 from PySide6.QtCore import Qt, QPointF, Signal, QRectF
-=======
-from PySide6.QtCore import Qt, QPointF, Signal
->>>>>>> c700eb56f69f4cd02d70a3861a09690595286e25
 from PySide6.QtGui import (
     QPainter, QPainterPath, QRadialGradient, QColor, QPen, QBrush, QFont,
 )
@@ -126,7 +122,6 @@ class SphereButton(QAbstractButton):
         p.setClipPath(clip)
         p.drawEllipse(QPointF(cx, cy + r * 0.3), r * 0.7, r * 0.25)
 
-<<<<<<< HEAD
         p.setClipping(False)
 
         # Play / pause icon
@@ -153,8 +148,6 @@ class SphereButton(QAbstractButton):
             path.closeSubpath()
             p.drawPath(path)
 
-=======
->>>>>>> c700eb56f69f4cd02d70a3861a09690595286e25
         p.end()
 
     def enterEvent(self, event) -> None:
@@ -175,13 +168,10 @@ class SphereButton(QAbstractButton):
         if self.rect().contains(event.pos()):
             self.clicked_signal.emit()
 
-<<<<<<< HEAD
     def set_playing(self, playing: bool) -> None:
         self._playing = playing
         self.update()
 
-=======
->>>>>>> c700eb56f69f4cd02d70a3861a09690595286e25
     def update_theme(self, accent: str, accent2: str) -> None:
         self._accent  = QColor(accent)
         self._accent2 = QColor(accent2)
@@ -242,7 +232,6 @@ class SmallCircleButton(QAbstractButton):
         ah = r * 0.35
         aw = r * 0.30
 
-<<<<<<< HEAD
         if self._direction == "prev":
             # Left-pointing triangle
             path = QPainterPath()
@@ -272,8 +261,6 @@ class SmallCircleButton(QAbstractButton):
 
         p.end()
 
-=======
->>>>>>> c700eb56f69f4cd02d70a3861a09690595286e25
     def enterEvent(self, event) -> None:
         self._hover = True
         self.update()
