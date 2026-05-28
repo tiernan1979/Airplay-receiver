@@ -1,176 +1,218 @@
 """
-PIL-rendered sphere button images.
-Cached by (size, color, glow, pressed) to avoid re-rendering on hover.
+Qt custom button widgets — glossy sphere and flat circle buttons.
+
+Rendered with QPainter (no PIL dependency) for better memory efficiency.
 """
 from __future__ import annotations
 
-try:
-    from PIL import Image, ImageDraw, ImageFilter, ImageTk
-    PIL_AVAILABLE = True
-except ImportError:
-    PIL_AVAILABLE = False
-
-from airplay_receiver.ui.colours import rgb as _rgb
-
-# ── Cache ─────────────────────────────────────────────────────────────────────
-_cache: dict = {}
-_CACHE_MAX   = 12
+from PySide6.QtCore import Qt, QPointF, Signal
+from PySide6.QtGui import (
+    QPainter, QPainterPath, QRadialGradient, QColor, QPen, QBrush,
+)
+from PySide6.QtWidgets import QAbstractButton
 
 
-def _evict() -> None:
-    if len(_cache) >= _CACHE_MAX:
-        del _cache[next(iter(_cache))]
+class SphereButton(QAbstractButton):
+    """Glossy sphere button — used for the play/pause transport button."""
+
+    SPHERE_SIZE = 64
+    PAD = 12
+
+    clicked_signal = Signal()
+
+    def __init__(
+        self,
+        accent: str,
+        accent2: str,
+        parent=None,
+    ) -> None:
+        super().__init__(parent)
+        self._accent  = QColor(accent)
+        self._accent2 = QColor(accent2)
+        self._hover   = False
+        self.setFixedSize(self.SPHERE_SIZE + self.PAD * 2,
+                          self.SPHERE_SIZE + self.PAD * 2)
+        self.setCursor(Qt.PointingHandCursor)
+
+    def _accent_color(self) -> QColor:
+        return self._accent2 if self._hover else self._accent
+
+    def paintEvent(self, event) -> None:
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        cx, cy = self.width() / 2.0, self.height() / 2.0
+        r = self.SPHERE_SIZE / 2.0
+
+        accent_col = self._accent_color()
+
+        # Outer glow ring
+        glow_pen = QPen(accent_col, 2)
+        glow_pen.setStyle(Qt.DashLine)
+        p.setPen(glow_pen)
+        p.setBrush(Qt.NoBrush)
+        p.drawEllipse(QPointF(cx, cy), r + 8, r + 8)
+
+        # Dark base
+        base_grad = QRadialGradient(cx, cy, r)
+        base_grad.setColorAt(0.0, QColor(20, 20, 30))
+        base_grad.setColorAt(1.0, QColor(6, 6, 10))
+        p.setBrush(base_grad)
+        p.setPen(Qt.NoPen)
+        p.drawEllipse(QPointF(cx, cy), r, r)
+
+        # Primary colour blob — upper-left
+        blob1 = QRadialGradient(cx - r * 0.35, cy - r * 0.35, r * 0.75)
+        c = accent_col
+        blob1.setColorAt(0.0, QColor(c.red(), c.green(), c.blue(), 110))
+        blob1.setColorAt(1.0, QColor(c.red(), c.green(), c.blue(), 0))
+        p.setBrush(blob1)
+        p.drawEllipse(QPointF(cx, cy), r, r)
+
+        # Secondary lighter blob — lower-right
+        lr = min(255, c.red() * 2 + 60)
+        lg = min(255, c.green() * 2 + 50)
+        lb = min(255, c.blue() * 2 + 60)
+        blob2 = QRadialGradient(cx + r * 0.22, cy + r * 0.22, r * 0.6)
+        blob2.setColorAt(0.0, QColor(lr, lg, lb, 55))
+        blob2.setColorAt(1.0, QColor(lr, lg, lb, 0))
+        p.setBrush(blob2)
+        p.drawEllipse(QPointF(cx, cy), r, r)
+
+        # Clip path for highlights
+        clip = QPainterPath()
+        clip.addEllipse(QPointF(cx, cy), r, r)
+
+        # White highlight A — large soft bloom top-left
+        h1 = QRadialGradient(cx - r * 0.36, cy - r * 0.40, r * 0.55)
+        h1.setColorAt(0.0, QColor(255, 255, 255, 190))
+        h1.setColorAt(1.0, QColor(255, 255, 255, 0))
+        p.setBrush(h1)
+        p.setClipPath(clip)
+        p.drawEllipse(QPointF(cx - r * 0.36, cy - r * 0.40), r * 0.55, r * 0.34)
+
+        # White highlight B — smaller secondary
+        h2 = QRadialGradient(cx + r * 0.26, cy - r * 0.05, r * 0.18)
+        h2.setColorAt(0.0, QColor(255, 255, 255, 90))
+        h2.setColorAt(1.0, QColor(255, 255, 255, 0))
+        p.setBrush(h2)
+        p.drawEllipse(QPointF(cx + r * 0.26, cy - r * 0.05), r * 0.18, r * 0.12)
+
+        # White highlight C — diffuse centre reflection
+        h3 = QRadialGradient(cx - r * 0.06, cy - r * 0.18, r * 0.22)
+        h3.setColorAt(0.0, QColor(255, 255, 255, 45))
+        h3.setColorAt(1.0, QColor(255, 255, 255, 0))
+        p.setBrush(h3)
+        p.setClipPath(clip)
+        p.drawEllipse(QPointF(cx - r * 0.06, cy - r * 0.18), r * 0.22, r * 0.22)
+
+        p.setClipping(False)
+
+        # Pressed dark overlay
+        if self.isDown():
+            p.setBrush(QColor(0, 0, 0, 80))
+            p.setPen(Qt.NoPen)
+            p.drawEllipse(QPointF(cx, cy), r, r)
+
+        # Bottom shadow
+        shadow = QRadialGradient(cx, cy + r * 0.3, r * 0.7)
+        shadow.setColorAt(0.0, QColor(0, 0, 0, 60))
+        shadow.setColorAt(1.0, QColor(0, 0, 0, 0))
+        p.setBrush(shadow)
+        p.setClipPath(clip)
+        p.drawEllipse(QPointF(cx, cy + r * 0.3), r * 0.7, r * 0.25)
+
+        p.end()
+
+    def enterEvent(self, event) -> None:
+        self._hover = True
+        self.update()
+
+    def leaveEvent(self, event) -> None:
+        self._hover = False
+        self.update()
+
+    def mousePressEvent(self, event) -> None:
+        super().mousePressEvent(event)
+        self.update()
+
+    def mouseReleaseEvent(self, event) -> None:
+        super().mouseReleaseEvent(event)
+        self.update()
+        if self.rect().contains(event.pos()):
+            self.clicked_signal.emit()
+
+    def update_theme(self, accent: str, accent2: str) -> None:
+        self._accent  = QColor(accent)
+        self._accent2 = QColor(accent2)
+        self.update()
 
 
-def clear_cache() -> None:
-    _cache.clear()
+class SmallCircleButton(QAbstractButton):
+    """Flat circle button — used for prev/next transport buttons."""
 
+    CIRCLE_SIZE = 44
+    PAD = 10
 
-# ── Sphere renderer ────────────────────────────────────────────────────────────
-def make_sphere(size: int, color: str, glow: str, pressed: bool = False) -> "Image.Image | None":
-    """
-    Render a dark glossy sphere button image.
-    Uses the CSS radial-gradient technique from smart-home UIs:
-      - Near-black radial base
-      - Two low-opacity colour blobs at strategic positions
-      - Three blurred white highlight layers for gloss
-    Rendered at 1.5× and Lanczos-downscaled for anti-aliasing.
-    Cached — same args return the cached image instantly.
-    """
-    if not PIL_AVAILABLE:
-        return None
-    key = (size, color, glow, pressed)
-    if key in _cache:
-        return _cache[key]
+    clicked_signal = Signal()
 
-    pad   = 10
-    total = size + pad * 2
-    # 1.5× supersampling
-    S2  = size  * 3 // 2
-    P2  = pad   * 3 // 2
-    T2  = total * 3 // 2
+    def __init__(
+        self,
+        card2: str,
+        accent: str,
+        parent=None,
+    ) -> None:
+        super().__init__(parent)
+        self._card2_col = QColor(card2)
+        self._accent_col = QColor(accent)
+        self._hover = False
+        self.setFixedSize(self.CIRCLE_SIZE + self.PAD * 2,
+                          self.CIRCLE_SIZE + self.PAD * 2)
+        self.setCursor(Qt.PointingHandCursor)
 
-    base = Image.new("RGBA", (T2, T2), (0, 0, 0, 0))
-    draw = ImageDraw.Draw(base)
+    def paintEvent(self, event) -> None:
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        cx, cy = self.width() / 2.0, self.height() / 2.0
+        r = self.CIRCLE_SIZE / 2.0
 
-    cx = cy = P2 + S2 // 2
-    r  = S2 // 2
-    br, bg_, bb = _rgb(color)
-    gr, gg, gb  = _rgb(glow)
+        # Hover glow ring
+        if self._hover:
+            glow_pen = QPen(self._accent_col, 2)
+            p.setPen(glow_pen)
+            p.setBrush(Qt.NoBrush)
+            p.drawEllipse(QPointF(cx, cy), r + 5, r + 5)
 
-    # 1. Near-black radial base
-    for i in range(r, 0, -2):
-        t = i / r
-        v = int(6 + 8 * (1 - t))
-        draw.ellipse([cx-i, cy-i, cx+i, cy+i], fill=(v, v, v, 255))
+        # Circle fill
+        cr, cg, cb = self._card2_col.red(), self._card2_col.green(), self._card2_col.blue()
+        if self._hover:
+            cr, cg, cb = min(255, cr + 45), min(255, cg + 45), min(255, cb + 45)
+        if self.isDown():
+            cr, cg, cb = max(0, cr - 30), max(0, cg - 30), max(0, cb - 30)
+        p.setBrush(QColor(cr, cg, cb, 220))
+        p.setPen(Qt.NoPen)
+        p.drawEllipse(QPointF(cx, cy), r, r)
 
-    # 2. Primary colour blob — upper-left
-    bx1 = cx - int(r * 0.38); by1 = cy - int(r * 0.38)
-    for i in range(int(r * 0.80), 0, -3):
-        t = i / (r * 0.80); a = int(110 * (1 - t) ** 0.85)
-        draw.ellipse([bx1-i, by1-i, bx1+i, by1+i], fill=(br, bg_, bb, a))
+        p.end()
 
-    # 3. Secondary lighter blob — lower-right
-    lr = min(255, int(br * 0.6 + 60))
-    lg = min(255, int(bg_ * 0.6 + 50))
-    lb = min(255, int(bb * 0.6 + 60))
-    bx2 = cx + int(r * 0.22); by2 = cy + int(r * 0.22)
-    for i in range(int(r * 0.65), 0, -3):
-        t = i / (r * 0.65); a = int(55 * (1 - t) ** 1.0)
-        draw.ellipse([bx2-i, by2-i, bx2+i, by2+i], fill=(lr, lg, lb, a))
+    def enterEvent(self, event) -> None:
+        self._hover = True
+        self.update()
 
-    # 4. Bottom shadow
-    shadow = Image.new("RGBA", (T2, T2), (0, 0, 0, 0))
-    sd = ImageDraw.Draw(shadow)
-    for i in range(int(r * 0.7), 0, -3):
-        t = i / (r * 0.7); a = int(160 * (1 - t) ** 0.6)
-        sy = cy + int(r * 0.45)
-        sd.ellipse([cx-i, sy - i//3, cx+i, sy + i//3], fill=(0, 0, 0, a))
-    base = Image.alpha_composite(base, shadow)
+    def leaveEvent(self, event) -> None:
+        self._hover = False
+        self.update()
 
-    # 5. Clip to circle
-    mask = Image.new("L", (T2, T2), 0)
-    ImageDraw.Draw(mask).ellipse([P2, P2, P2+S2, P2+S2], fill=255)
-    base.putalpha(mask)
+    def mousePressEvent(self, event) -> None:
+        super().mousePressEvent(event)
+        self.update()
 
-    # 6. White highlight A — large soft bloom top-left
-    hl_a  = Image.new("RGBA", (T2, T2), (0, 0, 0, 0))
-    ha    = ImageDraw.Draw(hl_a)
-    h1x   = cx - int(r * 0.36); h1y = cy - int(r * 0.40)
-    hw    = int(r * 0.58);       hh  = int(r * 0.34)
-    mhwh  = max(hw, hh)
-    for i in range(mhwh, 0, -3):
-        t = i / mhwh; a = int(190 * (1 - t) ** 1.5)
-        ha.ellipse([h1x - i*hw//mhwh, h1y - i*hh//mhwh,
-                    h1x + i*hw//mhwh, h1y + i*hh//mhwh], fill=(255, 255, 255, a))
-    hl_a = hl_a.filter(ImageFilter.GaussianBlur(radius=4))
-    hl_a.putalpha(mask)
-    base = Image.alpha_composite(base, hl_a)
+    def mouseReleaseEvent(self, event) -> None:
+        super().mouseReleaseEvent(event)
+        self.update()
+        if self.rect().contains(event.pos()):
+            self.clicked_signal.emit()
 
-    # 7. White highlight B — smaller secondary
-    hl_b = Image.new("RGBA", (T2, T2), (0, 0, 0, 0))
-    hb   = ImageDraw.Draw(hl_b)
-    h2x  = cx + int(r * 0.26); h2y = cy - int(r * 0.05)
-    h2r  = int(r * 0.18)
-    for i in range(h2r, 0, -2):
-        t = i / h2r; a = int(90 * (1 - t) ** 1.6)
-        hb.ellipse([h2x-i, h2y-i//2, h2x+i, h2y+i//2], fill=(255, 255, 255, a))
-    hl_b = hl_b.filter(ImageFilter.GaussianBlur(radius=2))
-    hl_b.putalpha(mask)
-    base = Image.alpha_composite(base, hl_b)
-
-    # 8. White highlight C — diffuse centre reflection
-    hl_c = Image.new("RGBA", (T2, T2), (0, 0, 0, 0))
-    hc   = ImageDraw.Draw(hl_c)
-    h3x  = cx - int(r * 0.06); h3y = cy - int(r * 0.18)
-    h3r  = int(r * 0.22)
-    for i in range(h3r, 0, -3):
-        t = i / h3r; a = int(45 * (1 - t) ** 2.0)
-        hc.ellipse([h3x-i, h3y-i, h3x+i, h3y+i], fill=(255, 255, 255, a))
-    hl_c = hl_c.filter(ImageFilter.GaussianBlur(radius=6))
-    hl_c.putalpha(mask)
-    base = Image.alpha_composite(base, hl_c)
-
-    # 9. Outer glow ring
-    glow_l = Image.new("RGBA", (T2, T2), (0, 0, 0, 0))
-    gd     = ImageDraw.Draw(glow_l)
-    for gi in range(22, 0, -2):
-        a = int(50 * (gi / 22) ** 2.0)
-        gd.ellipse([P2-gi, P2-gi, P2+S2+gi, P2+S2+gi],
-                   outline=(gr, gg, gb, a), width=1)
-    base = Image.alpha_composite(glow_l, base)
-
-    if pressed:
-        dark = Image.new("RGBA", (T2, T2), (0, 0, 0, 65))
-        base = Image.alpha_composite(base, dark)
-
-    result = base.resize((total, total), Image.LANCZOS)
-    _evict()
-    _cache[key] = result
-    return result
-
-
-def make_small_circle(
-    size: int, card2_color: str, accent_color: str,
-    hover: bool = False, pressed: bool = False,
-) -> "Image.Image | None":
-    """Flat circle background for prev/next buttons."""
-    if not PIL_AVAILABLE:
-        return None
-    pad   = 8
-    total = size + pad * 2
-    img   = Image.new("RGBA", (total, total), (0, 0, 0, 0))
-    d     = ImageDraw.Draw(img)
-    cr, cg, cb = _rgb(card2_color)
-    if hover:
-        cr = min(255, cr + 45); cg = min(255, cg + 45); cb = min(255, cb + 45)
-    if pressed:
-        cr = max(0, cr - 30); cg = max(0, cg - 30); cb = max(0, cb - 30)
-    d.ellipse([pad, pad, pad + size, pad + size], fill=(cr, cg, cb, 220))
-    if hover:
-        gr, gg, gb = _rgb(accent_color)
-        for gi in range(5, 0, -1):
-            a = int(28 * (gi / 5) ** 1.5)
-            d.ellipse([pad-gi, pad-gi, pad+size+gi, pad+size+gi],
-                      outline=(gr, gg, gb, a))
-    return img
+    def update_theme(self, card2: str, accent: str) -> None:
+        self._card2_col = QColor(card2)
+        self._accent_col = QColor(accent)
+        self.update()

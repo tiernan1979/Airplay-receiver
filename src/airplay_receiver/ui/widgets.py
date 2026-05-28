@@ -1,240 +1,256 @@
 """
-Reusable custom tkinter canvas widgets.
+Qt custom widgets — volume slider and marquee text.
+
+All rendering is done with QPainter for memory efficiency.
 """
 from __future__ import annotations
 
-import math
-import tkinter as tk
-from typing import Callable
-
-try:
-    from PIL import Image, ImageDraw, ImageTk
-    PIL_AVAILABLE = True
-except ImportError:
-    PIL_AVAILABLE = False
-
-from airplay_receiver.ui.colours import rgb as _rgb, blend as _blend
+from PySide6.QtCore import Qt, QRectF, QPointF, QTimer, Signal
+from PySide6.QtGui import (
+    QPainter, QColor, QPen, QBrush, QFont, QFontMetrics,
+)
+from PySide6.QtWidgets import QWidget
 
 
-class CanvasSlider(tk.Canvas):
+class VolumeSlider(QWidget):
     """
     Volume slider: rounded track with teal→accent gradient fill,
-    clean dot thumb with glow ring.
+    clean dot thumb with glow ring. Uses QPainter (no PIL).
     """
+
     TRACK_H = 4
     THUMB_R = 10
     PAD_X   = 14
 
+    valueChanged = Signal(int)
+
     def __init__(
         self,
-        parent,
-        var: tk.IntVar,
-        cmd: Callable[[int], None],
-        width: int = 200,
+        parent=None,
+        initial: int = 80,
         theme: dict | None = None,
-        **kw,
     ) -> None:
-        height = self.THUMB_R * 2 + 8
-        try:
-            bg = parent.cget("bg")
-        except Exception:
-            bg = "#100c1e"
-        super().__init__(parent, width=width, height=height,
-                         bg=bg, highlightthickness=0, **kw)
-        self._var   = var
-        self._cmd   = cmd
-        self._W     = width
-        self._H     = height
-        self._drag  = False
+        super().__init__(parent)
+        self._val   = initial
         self._theme = theme or {}
-        self._img_ref: object = None
-        var.trace_add("write", lambda *_: self.after(0, self._redraw))
-        self.bind("<ButtonPress-1>",   self._on_press)
-        self.bind("<B1-Motion>",       self._on_drag)
-        self.bind("<ButtonRelease-1>", self._on_release)
-        self._redraw()
+        self._drag  = False
+        h = self.THUMB_R * 2 + 8
+        self.setFixedHeight(h)
+        self.setMouseTracking(True)
+        self.setCursor(Qt.PointingHandCursor)
 
     def update_theme(self, theme: dict) -> None:
         self._theme = theme
-        self._redraw()
+        self.update()
 
-    def _val_to_x(self, val: int) -> int:
-        return self.PAD_X + int((self._W - self.PAD_X * 2) * val / 100)
+    def set_value(self, val: int) -> None:
+        self._val = max(0, min(100, val))
+        self.update()
 
-    def _x_to_val(self, x: int) -> int:
+    def value(self) -> int:
+        return self._val
+
+    def _val_to_x(self, val: int) -> float:
+        w = self.width()
+        return self.PAD_X + (w - self.PAD_X * 2) * val / 100.0
+
+    def _x_to_val(self, x: float) -> int:
+        w = self.width()
         return max(0, min(100, round(
-            (x - self.PAD_X) / (self._W - self.PAD_X * 2) * 100
+            (x - self.PAD_X) / max(w - self.PAD_X * 2, 1) * 100
         )))
 
-    def _redraw(self) -> None:
-        if not PIL_AVAILABLE:
-            return
-        val    = self._var.get()
-        W, H   = self._W, self._H
-        cy     = H // 2
-        tx0    = self.PAD_X
-        tx1    = W - self.PAD_X
-        th     = self.TRACK_H // 2
-        fill_x = self._val_to_x(val)
+    def paintEvent(self, event) -> None:
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+
+        W = self.width()
+        H = self.height()
+        cy = H // 2
+        tx0 = self.PAD_X
+        tx1 = W - self.PAD_X
+        th = self.TRACK_H // 2
+        fill_x = self._val_to_x(self._val)
 
         t_col  = self._theme.get("teal",   "#14b8a6")
         a_col  = self._theme.get("accent", "#8b5cf6")
         c2_col = self._theme.get("card2",  "#261e4a")
         txt_col= self._theme.get("text",   "#f1f5f9")
 
-        img  = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-        draw = ImageDraw.Draw(img)
+        track_col  = QColor(c2_col)
+        teal_col   = QColor(t_col)
+        accent_col = QColor(a_col)
+        white_col  = QColor(txt_col)
 
         # Empty track
-        tr, tg, tb = _rgb(c2_col)
-        draw.rounded_rectangle(
-            [tx0, cy - th - 1, tx1, cy + th + 1],
-            radius=th + 1, fill=(tr, tg, tb, 200),
-        )
+        track_rect = QRectF(tx0, cy - th - 1, tx1 - tx0, (th + 1) * 2)
+        p.setBrush(track_col)
+        p.setPen(Qt.NoPen)
+        p.drawRoundedRect(track_rect, th + 1, th + 1)
 
-        # Filled track
+        # Filled track — gradient
         if fill_x > tx0:
-            r1, g1, b1 = _rgb(t_col)
-            r2, g2, b2 = _rgb(a_col)
-            fw = fill_x - tx0
-            for xi in range(fw):
-                t = xi / max(fw - 1, 1)
-                r = int(r1 + (r2 - r1) * t)
-                g = int(g1 + (g2 - g1) * t)
-                b = int(b1 + (b2 - b1) * t)
-                draw.line([(tx0 + xi, cy - th), (tx0 + xi, cy + th)],
-                          fill=(r, g, b, 255))
-            er, eg, eb = _rgb(t_col)
-            draw.ellipse([tx0 - th, cy - th, tx0 + th, cy + th],
-                         fill=(er, eg, eb, 255))
+            for xi in range(int(fill_x - tx0)):
+                t = xi / max(fill_x - tx0 - 1, 1)
+                r = int(teal_col.red()   + (accent_col.red()   - teal_col.red())   * t)
+                g = int(teal_col.green() + (accent_col.green() - teal_col.green()) * t)
+                b = int(teal_col.blue()  + (accent_col.blue()  - teal_col.blue())  * t)
+                p.setPen(QColor(r, g, b))
+                p.drawLine(int(tx0 + xi), cy - th, int(tx0 + xi), cy + th)
+
+            # Left end cap
+            p.setBrush(teal_col)
+            p.setPen(Qt.NoPen)
+            p.drawEllipse(QPointF(tx0, cy), th, th)
 
         # Thumb dot
-        cx    = fill_x
-        tr2   = self.THUMB_R
-        gr, gg, gb = _rgb(a_col)
+        cx = fill_x
+        tr2 = self.THUMB_R
+
+        # Glow ring
         for gi in range(tr2 + 5, tr2 - 1, -1):
-            t  = (gi - tr2 + 1) / 6
-            a  = int(55 * (1 - t) ** 1.8)
-            draw.ellipse([cx - gi, cy - gi, cx + gi, cy + gi],
-                         outline=(gr, gg, gb, a))
-        wr, wg, wb = _rgb(txt_col)
-        draw.ellipse([cx - tr2, cy - tr2, cx + tr2, cy + tr2],
-                     fill=(wr, wg, wb, 255))
+            t = (gi - tr2 + 1) / 6.0
+            a = int(55 * (1 - t) ** 1.8)
+            glow_c = QColor(accent_col.red(), accent_col.green(), accent_col.blue(), a)
+            p.setPen(QPen(glow_c, 1))
+            p.setBrush(Qt.NoBrush)
+            p.drawEllipse(QPointF(cx, cy), gi, gi)
+
+        # White thumb
+        p.setBrush(white_col)
+        p.setPen(Qt.NoPen)
+        p.drawEllipse(QPointF(cx, cy), tr2, tr2)
+
+        # Small highlight on thumb
         sx = cx - tr2 // 3
         sy = cy - tr2 // 3
         ss = max(2, tr2 // 4)
-        draw.ellipse([sx - ss, sy - ss, sx + ss, sy + ss],
-                     fill=(255, 255, 255, 200))
+        p.setBrush(QColor(255, 255, 255, 200))
+        p.drawEllipse(QPointF(sx, sy), ss, ss)
 
-        photo = ImageTk.PhotoImage(img)
-        self._img_ref = photo
-        self.delete("all")
-        self.create_image(0, 0, anchor="nw", image=photo)
+        p.end()
 
-    def _on_press(self, e: tk.Event) -> None:
-        self._drag = True; self._update(e.x)
+    def mousePressEvent(self, event) -> None:
+        if event.button() == Qt.LeftButton:
+            self._drag = True
+            self._update_from_pos(event.position().x())
 
-    def _on_drag(self, e: tk.Event) -> None:
-        if self._drag: self._update(e.x)
+    def mouseMoveEvent(self, event) -> None:
+        if self._drag:
+            self._update_from_pos(event.position().x())
 
-    def _on_release(self, e: tk.Event) -> None:
-        self._drag = False; self._update(e.x)
+    def mouseReleaseEvent(self, event) -> None:
+        if event.button() == Qt.LeftButton and self._drag:
+            self._drag = False
+            self._update_from_pos(event.position().x())
 
-    def _update(self, x: int) -> None:
+    def _update_from_pos(self, x: float) -> None:
         val = self._x_to_val(x)
-        self._var.set(val)
-        self._cmd(val)
-        self._redraw()
+        if val != self._val:
+            self._val = val
+            self.valueChanged.emit(val)
+        self.update()
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        self.update()
 
 
-class Marquee(tk.Canvas):
+class MarqueeLabel(QWidget):
     """Horizontally scrolling single-line text label."""
 
-    SPEED       = 1.2   # pixels per tick
-    TICK_MS     = 50    # ms per tick
-    PAUSE_TICKS = 80    # pause at each end
+    SPEED       = 1.2
+    TICK_MS     = 50
+    PAUSE_TICKS = 80
 
     def __init__(
         self,
-        parent,
-        var: tk.StringVar,
-        font: tuple,
-        fg: str,
-        width: int,
-        height: int = 28,
-        **kw,
+        parent=None,
+        font: QFont | None = None,
+        fg: str = "#f1f5f9",
+        bg: str = "#100c1e",
     ) -> None:
-        try:
-            bg = parent.cget("bg")
-        except Exception:
-            bg = "#100c1e"
-        super().__init__(parent, width=width, height=height,
-                         bg=bg, highlightthickness=0, **kw)
-        self._var     = var
-        self._font    = font
-        self._fg      = fg
-        self._W       = width
-        self._H       = height
+        super().__init__(parent)
+        self._text    = ""
+        self._fg      = QColor(fg)
+        self._bg      = QColor(bg)
+        self._font    = font or QFont("Segoe UI", 12)
+        self._font.setBold(True)
         self._offset  = 0.0
         self._dir     = 1
         self._pause   = self.PAUSE_TICKS
         self._text_w  = 0
-        self._after_id: str | None = None
-        var.trace_add("write", lambda *_: self.after(0, self._reset))
-        self._reset()
+        self._timer   = QTimer(self)
+        self._timer.timeout.connect(self._tick)
+        self._timer.start(self.TICK_MS)
+
+    def setText(self, text: str) -> None:
+        if text != self._text:
+            self._text = text
+            self._reset()
+
+    def text(self) -> str:
+        return self._text
 
     def update_theme(self, fg: str, bg: str) -> None:
-        self._fg = fg
-        self.configure(bg=bg)
+        self._fg = QColor(fg)
+        self._bg = QColor(bg)
         self._reset()
 
     def _reset(self) -> None:
-        if self._after_id:
-            try: self.after_cancel(self._after_id)
-            except Exception: pass
         self._offset = 0.0
         self._dir    = 1
         self._pause  = self.PAUSE_TICKS
-        self._redraw()
-        self._loop()
+        self._measure_text()
+        self.update()
 
-    def _measure(self, text: str) -> int:
-        self.update_idletasks()
-        tid = self.create_text(0, 0, text=text, font=self._font, anchor="nw")
-        bb  = self.bbox(tid)
-        self.delete(tid)
-        return (bb[2] - bb[0]) if bb else 0
+    def _measure_text(self) -> None:
+        fm = QFontMetrics(self._font)
+        self._text_w = fm.horizontalAdvance(self._text) if self._text else 0
 
-    def _redraw(self) -> None:
-        self.delete("all")
-        text = self._var.get()
-        if not text:
+    def paintEvent(self, event) -> None:
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        p.setFont(self._font)
+
+        W = self.width()
+        H = self.height()
+        p.fillRect(self.rect(), self._bg)
+
+        if not self._text:
             return
-        self._text_w = self._measure(text)
-        if self._text_w <= self._W:
-            self.create_text(self._W // 2, self._H // 2, text=text,
-                             font=self._font, fill=self._fg, anchor="center")
-        else:
-            x = self._W // 2 - self._offset
-            self.create_text(x, self._H // 2, text=text,
-                             font=self._font, fill=self._fg, anchor="center")
-            bg = self.cget("bg")
-            self.create_rectangle(0, 0, 18, self._H, fill=bg, outline="")
-            self.create_rectangle(self._W - 18, 0, self._W, self._H,
-                                  fill=bg, outline="")
 
-    def _loop(self) -> None:
-        overflow = self._text_w - self._W + 30
+        if self._text_w <= W:
+            p.setPen(self._fg)
+            p.drawText(self.rect(), Qt.AlignCenter, self._text)
+        else:
+            x = W // 2 - self._offset
+            p.setPen(self._fg)
+            p.drawText(int(x), 0, self._text_w, H,
+                       Qt.AlignVCenter | Qt.AlignLeft, self._text)
+
+            # Fade edges
+            fade_w = 18
+            fade_l = QRectF(0, 0, fade_w, H)
+            fade_r = QRectF(W - fade_w, 0, fade_w, H)
+            p.fillRect(fade_l, self._bg)
+            p.fillRect(fade_r, self._bg)
+
+        p.end()
+
+    def _tick(self) -> None:
+        overflow = self._text_w - self.width() + 30
         if overflow > 0:
             if self._pause > 0:
                 self._pause -= 1
             else:
                 self._offset += self.SPEED * (-self._dir)
                 if self._offset >= overflow:
-                    self._offset = overflow; self._dir = -1
-                    self._pause  = self.PAUSE_TICKS
+                    self._offset = overflow
+                    self._dir = -1
+                    self._pause = self.PAUSE_TICKS
                 elif self._offset <= 0:
-                    self._offset = 0; self._dir = 1
-                    self._pause  = self.PAUSE_TICKS
-            self._redraw()
-        self._after_id = self.after(self.TICK_MS, self._loop)
+                    self._offset = 0
+                    self._dir = 1
+                    self._pause = self.PAUSE_TICKS
+            self.update()
