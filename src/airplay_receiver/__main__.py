@@ -6,14 +6,6 @@ from __future__ import annotations
 
 import sys
 import os
-<<<<<<< HEAD
-=======
-import time
->>>>>>> 1a8aadf5d45151d176eeba3d7640582d8d0b28aa
-
-from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QIcon, QAction, QPixmap, QPainter, QColor, QBrush
-from PySide6.QtWidgets import QApplication, QSystemTrayIcon, QMenu
 
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QIcon, QAction, QPixmap, QPainter, QColor, QBrush
