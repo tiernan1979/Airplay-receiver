@@ -5,11 +5,19 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+<<<<<<< HEAD
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
     QComboBox, QPushButton, QFrame, QWidget,
+=======
+from PySide6.QtCore import Qt, QRect, QPoint
+from PySide6.QtGui import QColor
+from PySide6.QtWidgets import (
+    QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
+    QComboBox, QPushButton, QFrame, QCheckBox, QWidget,
+>>>>>>> 1a8aadf5d45151d176eeba3d7640582d8d0b28aa
 )
 
 from airplay_receiver.platform import open_path, THEME_FILE, LOG_FILE
@@ -329,4 +337,8 @@ class SettingsDialog(QDialog):
         self.close()
 
         if theme_changed and self._ui_ref:
+<<<<<<< HEAD
+=======
+            from PySide6.QtCore import QTimer
+>>>>>>> 1a8aadf5d45151d176eeba3d7640582d8d0b28aa
             QTimer.singleShot(50, self._ui_ref.retheme)
