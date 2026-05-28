@@ -5,22 +5,11 @@ All rendering is done with QPainter for memory efficiency.
 """
 from __future__ import annotations
 
-<<<<<<< HEAD
-=======
-import math
-
->>>>>>> 1a8aadf5d45151d176eeba3d7640582d8d0b28aa
 from PySide6.QtCore import Qt, QRectF, QPointF, QTimer, Signal
 from PySide6.QtGui import (
     QPainter, QColor, QPen, QBrush, QFont, QFontMetrics,
 )
-<<<<<<< HEAD
 from PySide6.QtWidgets import QWidget
-=======
-from PySide6.QtWidgets import QWidget, QSizePolicy
-
-from airplay_receiver.ui.colours import rgb as _rgb, blend as _blend
->>>>>>> 1a8aadf5d45151d176eeba3d7640582d8d0b28aa
 
 
 class VolumeSlider(QWidget):
@@ -101,10 +90,6 @@ class VolumeSlider(QWidget):
 
         # Filled track — gradient
         if fill_x > tx0:
-<<<<<<< HEAD
-=======
-            fill_rect = QRectF(tx0, cy - th, fill_x - tx0, th * 2)
->>>>>>> 1a8aadf5d45151d176eeba3d7640582d8d0b28aa
             for xi in range(int(fill_x - tx0)):
                 t = xi / max(fill_x - tx0 - 1, 1)
                 r = int(teal_col.red()   + (accent_col.red()   - teal_col.red())   * t)

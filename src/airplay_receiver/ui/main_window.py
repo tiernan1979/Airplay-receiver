@@ -14,7 +14,6 @@ try:
 except ImportError:
     PIL_AVAILABLE = False
 
-<<<<<<< HEAD
 from PySide6.QtCore import Qt, QRectF, QPointF, QTimer
 from PySide6.QtGui import (
     QPainter, QPainterPath, QColor, QPen, QBrush, QFont, QPixmap, QImage,
@@ -25,20 +24,6 @@ from PySide6.QtWidgets import (
 
 from airplay_receiver.platform import (
     set_window_no_taskbar, set_window_alpha,
-=======
-from PySide6.QtCore import Qt, QRectF, QPointF, QTimer, Signal
-from PySide6.QtGui import (
-    QPainter, QPainterPath, QColor, QPen, QBrush, QFont, QPixmap, QImage,
-    QFontMetrics,
-)
-from PySide6.QtWidgets import (
-    QWidget, QLabel, QPushButton, QVBoxLayout, QHBoxLayout, QFrame,
-    QSizePolicy, QApplication,
-)
-
-from airplay_receiver.platform import (
-    IS_WINDOWS, set_window_no_taskbar, set_window_alpha,
->>>>>>> 1a8aadf5d45151d176eeba3d7640582d8d0b28aa
 )
 from airplay_receiver.ui.buttons   import SphereButton, SmallCircleButton
 from airplay_receiver.ui.colours   import rgb as _rgb, blend as _blend
@@ -91,10 +76,7 @@ class ModernUI(QWidget):
         self._art_pixmap: QPixmap | None = None
         self._tick_count = 0
         self._title_str  = ""
-<<<<<<< HEAD
         self._vol_timer  = None
-=======
->>>>>>> 1a8aadf5d45151d176eeba3d7640582d8d0b28aa
         self._drag_pos   = None
 
         self.setWindowTitle("AirPlay Receiver")
@@ -554,17 +536,12 @@ class ModernUI(QWidget):
         self._state.volume = val
         self._config["volume"] = val
         self._vol_pct.setText(f"{val}%")
-<<<<<<< HEAD
         self._pending_vol = val
         if self._vol_timer:
-=======
-        if hasattr(self, "_vol_timer") and self._vol_timer:
->>>>>>> 1a8aadf5d45151d176eeba3d7640582d8d0b28aa
             try:
                 self._vol_timer.stop()
             except Exception:
                 pass
-<<<<<<< HEAD
         else:
             self._vol_timer = QTimer(self)
             self._vol_timer.setSingleShot(True)
@@ -574,15 +551,6 @@ class ModernUI(QWidget):
     def _flush_vol(self) -> None:
         if self._state.active_remote:
             self._dacp.set_volume(self._pending_vol)
-=======
-        from PySide6.QtCore import QTimer
-        self._vol_timer = QTimer(self)
-        self._vol_timer.setSingleShot(True)
-        self._vol_timer.timeout.connect(
-            lambda: self._dacp.set_volume(val) if self._state.active_remote else None
-        )
-        self._vol_timer.start(500)
->>>>>>> 1a8aadf5d45151d176eeba3d7640582d8d0b28aa
 
     # ── Play/pause ────────────────────────────────────────────────────────────
     def _play_pause(self) -> None:
@@ -604,10 +572,6 @@ class ModernUI(QWidget):
     # ── Retheme ───────────────────────────────────────────────────────────────
     def retheme(self) -> None:
         T = self._theme
-<<<<<<< HEAD
-=======
-        bg_col = QColor(T["bg"])
->>>>>>> 1a8aadf5d45151d176eeba3d7640582d8d0b28aa
         self._tb_frame.setStyleSheet(f"background: {T['tbarbg']};")
         self._tb_accent.setStyleSheet(f"background: {T['accent']};")
         self._tb_lbl.setStyleSheet(f"color: {T['muted']}; background: transparent;")
