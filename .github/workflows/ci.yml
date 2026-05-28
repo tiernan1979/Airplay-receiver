@@ -141,7 +141,7 @@ jobs:
             --hidden-import sounddevice `
             --hidden-import numpy `
             --hidden-import zeroconf `
-            --hidden-import pystray `
+            --hidden-import PySide6 `
             --hidden-import PIL `
             --hidden-import av `
             --clean `
@@ -215,7 +215,7 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y \
-            python3-tk \
+            libxcb-cursor0 libegl1 libxkbcommon-x11-0 \
             portaudio19-dev \
             libavcodec-dev libavformat-dev libswscale-dev \
             ffmpeg \
@@ -236,7 +236,7 @@ jobs:
             --hidden-import sounddevice \
             --hidden-import numpy \
             --hidden-import zeroconf \
-            --hidden-import pystray \
+            --hidden-import PySide6 \
             --hidden-import PIL \
             --hidden-import av \
             src/airplay_receiver/__main__.py

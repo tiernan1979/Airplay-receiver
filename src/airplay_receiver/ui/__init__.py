@@ -1,1 +1,1 @@
-"""UI package — tkinter-based GUI for AirPlay Receiver."""
+"""UI package — PySide6-based GUI for AirPlay Receiver."""

@@ -4,12 +4,15 @@ python -m airplay_receiver   or   airplay-receiver (installed script)
 """
 from __future__ import annotations
 
-import threading
-import tkinter as tk
+import sys
+import os
 import time
-import subprocess, sys, os
 
 import requests
+
+from PySide6.QtCore import Qt, QTimer
+from PySide6.QtGui import QIcon, QAction, QPixmap, QPainter, QColor, QBrush
+from PySide6.QtWidgets import QApplication, QSystemTrayIcon, QMenu
 
 from airplay_receiver.audio import AudioEngine, AUDIO_AVAILABLE, AV_AVAILABLE
 from airplay_receiver.config import init as config_init
@@ -18,64 +21,12 @@ from airplay_receiver.platform import THEME_FILE
 from airplay_receiver.raop import MdnsAdvertiser, RaopServer, find_free_tcp
 from airplay_receiver.themes import ThemeManager, write_default_theme_file
 
-try:
-    import pystray
-    from PIL import Image, ImageDraw
-    TRAY_AVAILABLE = True
-except ImportError:
-    TRAY_AVAILABLE = False
-
 PREFERRED_PORT = 7000
 
 
-# ── System tray ───────────────────────────────────────────────────────────────
-def get_tray_icon():
-    if getattr(sys, "frozen", False):
-        base = sys._MEIPASS
-        path = os.path.join(base, "app.ico")
-    else:
-        path = "install/windows/app.ico"
-
-    return Image.open(path)
-
-def safe_call(root, fn):
-    root.after(0, fn)
-
-def run_tray(ui) -> None:
-    if not TRAY_AVAILABLE:
-        return
-
-    import pystray
-
-    T = ui._theme
-    img = get_tray_icon()
-
-    def open_app(icon, item):
-        ui.root.after(0, ui.show)
-
-    def quit_app(icon, item):
-        icon.stop()
-        ui.root.after(0, ui.quit_app)
-
-    menu = pystray.Menu(
-        pystray.MenuItem("Open", open_app, default=True),
-        pystray.MenuItem("Quit", quit_app),
-    )
-
-    icon = pystray.Icon(
-        "AirPlay Receiver",
-        img,
-        "AirPlay Receiver",
-        menu
-    )
-
-    # IMPORTANT: don't rely on daemon thread exiting
-    icon.run_detached()  # MUCH more stable on Windows
-
-# ── Apply Update on Start ──────────────────────────────────────────────────────────────────────
-
+# ── Apply Update on Start ──────────────────────────────────────────────────────
 def apply_pending_update():
-    import shutil,os
+    import shutil, tempfile
     flag = os.path.join(tempfile.gettempdir(), "airplay_pending_update")
 
     if not os.path.exists(flag):
@@ -87,14 +38,17 @@ def apply_pending_update():
     os.remove(flag)
 
     install_dir = os.path.dirname(sys.executable)
-
-    # simple replace strategy
     shutil.copy(path, os.path.join(install_dir, "AirPlayReceiver.exe"))
+
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 def main() -> None:
     import logging
 
+    app = QApplication(sys.argv)
+    app.setQuitOnLastWindowClosed(False)
+
+    # ── Resources ──────────────────────────────────────────────────────────
     log, config, state = config_init()
 
     if not AUDIO_AVAILABLE:
@@ -140,38 +94,64 @@ def main() -> None:
     log.warning(f"Audio: {'✓' if AUDIO_AVAILABLE else '✗ pip install sounddevice numpy'}")
     log.warning("=" * 55)
 
-    # UI
-    root = tk.Tk()
-    root.withdraw()
-
+    # ── UI ─────────────────────────────────────────────────────────────────
     from airplay_receiver.ui.main_window import ModernUI
-    ui = ModernUI(root, config, state, audio, dacp_remote, theme)
+    ui = ModernUI(config, state, audio, dacp_remote, theme)
 
     if not config["start_minimised"]:
-        root.after(200, ui.show)
+        QTimer.singleShot(200, ui.show)
 
-    tray_thread = None
+    # ── System tray ────────────────────────────────────────────────────────
+    tray_icon = QIcon()
+    if getattr(sys, "frozen", False):
+        base = sys._MEIPASS
+        icon_path = os.path.join(base, "app.ico")
+    else:
+        icon_path = "install/windows/app.ico"
 
-    if TRAY_AVAILABLE:
-        if getattr(sys, "frozen", False):
-            time.sleep(0.5)
-        tray_thread = threading.Thread(
-            target=run_tray,
-            args=(ui,),
-            name="tray",
-            daemon=False  # IMPORTANT
-        )
-        tray_thread.start()
+    if os.path.exists(icon_path):
+        tray_icon = QIcon(icon_path)
+    else:
+        pix = QPixmap(32, 32)
+        pix.fill(QColor(0, 0, 0, 0))
+        p = QPainter(pix)
+        p.setRenderHint(p.RenderHint.Antialiasing)
+        p.setBrush(QBrush(QColor("#8b5cf6")))
+        p.setPen(Qt.NoPen)
+        p.drawEllipse(2, 2, 28, 28)
+        p.setPen(QColor("white"))
+        p.drawText(0, 0, 32, 32, Qt.AlignCenter, "♪")
+        p.end()
+        tray_icon = QIcon(pix)
 
-    try:
-        root.mainloop()
-    finally:
+    tray = QSystemTrayIcon(tray_icon, app)
+    tray.setToolTip("AirPlay Receiver")
+
+    tray_menu = QMenu()
+    open_action = QAction("Open", tray_menu)
+    open_action.triggered.connect(ui.show)
+    tray_menu.addAction(open_action)
+    tray_menu.setDefaultAction(open_action)
+
+    quit_action = QAction("Quit", tray_menu)
+    quit_action.triggered.connect(app.quit)
+    tray_menu.addAction(quit_action)
+
+    tray.setContextMenu(tray_menu)
+    tray.show()
+
+    # ── Cleanup on quit ────────────────────────────────────────────────────
+    def cleanup():
         log.warning("Shutdown")
         mdns.stop()
         raop.stop()
         audio.stop()
         config.save()
 
-if __name__ == "__main__":
+    app.aboutToQuit.connect(cleanup)
 
+    sys.exit(app.exec())
+
+
+if __name__ == "__main__":
     main()

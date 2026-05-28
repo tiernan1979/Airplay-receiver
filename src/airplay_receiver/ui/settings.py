@@ -1,15 +1,18 @@
 """
-Settings dialog — frameless, themed, matches main window style.
+Settings dialog — frameless QDialog, themed to match main window style.
 """
 from __future__ import annotations
 
-import os
-import tkinter as tk
-from tkinter import ttk
 from typing import TYPE_CHECKING
 
+from PySide6.QtCore import Qt, QRect, QPoint
+from PySide6.QtGui import QColor
+from PySide6.QtWidgets import (
+    QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
+    QComboBox, QPushButton, QFrame, QCheckBox, QWidget,
+)
+
 from airplay_receiver.platform import open_path, THEME_FILE, LOG_FILE
-from airplay_receiver.ui.buttons import clear_cache
 
 if TYPE_CHECKING:
     from airplay_receiver.config   import Config, PlayerState
@@ -17,229 +20,314 @@ if TYPE_CHECKING:
     from airplay_receiver.themes   import ThemeManager
 
 
-class SettingsDialog:
-    """Frameless settings window. Opened from the ⚙ gear icon."""
+def _theme_qss(T: dict) -> str:
+    """Build Qt Style Sheet from theme dict."""
+    bg   = T["bg"]
+    card = T.get("input_bg", T["card"])
+    fg   = T.get("input_fg", T["text"])
+    accent = T["accent"]
+    border = T["border"]
+    card2 = T["card2"]
+    return f"""
+    QDialog {{ background: {bg}; }}
+    QLabel {{ color: {fg}; background: transparent; }}
+    QLineEdit {{
+        background: {card}; color: {fg}; border: 1px solid {border};
+        border-radius: 4px; padding: 6px 10px; font-size: 10pt;
+        selection-background-color: {accent};
+    }}
+    QComboBox {{
+        background: {card}; color: {fg}; border: 1px solid {border};
+        border-radius: 4px; padding: 6px 10px; font-size: 10pt;
+    }}
+    QComboBox::drop-down {{
+        border: none; padding-right: 8px;
+    }}
+    QComboBox QAbstractItemView {{
+        background: {card}; color: {fg}; selection-background-color: {accent};
+        border: 1px solid {border};
+    }}
+    QPushButton {{
+        background: {card2}; color: {fg}; border: none;
+        border-radius: 4px; padding: 8px 16px; font-size: 10pt;
+    }}
+    QPushButton:hover {{ background: {border}; }}
+    QPushButton:pressed {{ background: {accent}; color: white; }}
+    QCheckBox {{
+        color: {T["muted"]}; spacing: 8px;
+    }}
+    QCheckBox::indicator {{
+        width: 16px; height: 16px;
+        border: 1px solid {border}; border-radius: 3px;
+        background: {card};
+    }}
+    QCheckBox::indicator:checked {{
+        background: {accent}; border-color: {accent};
+    }}
+    QFrame[frameShape="4"] {{  /* HLine */
+        color: {border};
+    }}
+    """
+
+
+class SettingsDialog(QDialog):
+    """Frameless settings dialog. Opened from the ⚙ gear icon."""
 
     def __init__(
         self,
-        parent: tk.Misc,
+        parent,
         config: "Config",
         state:  "PlayerState",
         audio:  "AudioEngine",
         theme:  "ThemeManager",
         ui_ref=None,
     ) -> None:
-        self.win     = tk.Toplevel(parent)
-        self.root    = parent
+        super().__init__(parent)
         self._config = config
         self._state  = state
         self._audio  = audio
         self._theme  = theme
         self._ui_ref = ui_ref
+        self._drag_pos = None
 
         T = theme
-
-        self.win.configure(bg=T["bg"])
-        self.win.geometry("420x530")
-        self.win.resizable(False, False)
-        self.win.overrideredirect(True)
-        try:
-            self.win.attributes("-toolwindow", True)
-        except Exception:
-            pass
+        self.setWindowFlags(Qt.FramelessWindowHint | Qt.Dialog)
+        self.setAttribute(Qt.WA_TranslucentBackground, False)
+        self.setFixedSize(420, 530)
+        self.setStyleSheet(_theme_qss(T._t))
 
         # Centre over parent
-        try:
-            px, py = parent.winfo_x(), parent.winfo_y()
-            pw, ph = parent.winfo_width(), parent.winfo_height()
-            self.win.geometry(f"420x530+{px + (pw-420)//2}+{py + (ph-530)//2}")
-        except Exception:
-            pass
+        if parent:
+            px, py = parent.x(), parent.y()
+            pw, ph = parent.width(), parent.height()
+            self.move(px + (pw - 420) // 2, py + (ph - 530) // 2)
 
-        # Combobox style
-        sty = ttk.Style(self.win)
-        sty.theme_use("clam")
-        sty.configure("S.TCombobox",
-            fieldbackground=T.get("input_bg", T["card"]),
-            background     =T.get("input_bg", T["card"]),
-            foreground     =T.get("input_fg", T["text"]),
-            selectbackground=T["accent"],
-            selectforeground="white",
-            bordercolor=T["border"], padding=5)
-        sty.map("S.TCombobox",
-            fieldbackground=[("readonly", T.get("input_bg", T["card"]))],
-            foreground      =[("readonly", T.get("input_fg", T["text"]))])
-
-        self._dx = [0, 0]
-        self._build_titlebar()
-        self._build_body()
+        self._build_titlebar(T)
+        self._build_body(T)
 
     # ── Titlebar ──────────────────────────────────────────────────────────────
-    def _build_titlebar(self) -> None:
-        T  = self._theme
-        tb = tk.Frame(self.win, bg=T["tbarbg"], height=36)
-        tb.pack(fill="x", side="top")
-        tk.Frame(tb, bg=T["accent"], width=3).pack(side="left", fill="y")
-        tk.Label(tb, text="  ⚙  SETTINGS", bg=T["tbarbg"], fg=T["muted"],
-                 font=("Courier New", 7, "bold")).pack(side="left", pady=10)
-        xl = tk.Label(tb, text="  ✕  ", bg=T["tbarbg"], fg=T["muted"],
-                      font=("Segoe UI", 10), cursor="hand2")
-        xl.pack(side="right")
-        xl.bind("<Enter>", lambda e: xl.config(bg=T["accent2"], fg="white"))
-        xl.bind("<Leave>", lambda e: xl.config(bg=T["tbarbg"],  fg=T["muted"]))
-        xl.bind("<Button-1>", lambda e: self.win.destroy())
-        tb.bind("<ButtonPress-1>",
-                lambda e: self._dx.__setitem__(slice(None),
-                    [e.x_root - self.win.winfo_x(),
-                     e.y_root - self.win.winfo_y()]))
-        tb.bind("<B1-Motion>",
-                lambda e: self.win.geometry(
-                    f"+{e.x_root - self._dx[0]}+{e.y_root - self._dx[1]}"))
+    def _build_titlebar(self, T: dict) -> None:
+        tb = QFrame(self)
+        tb.setFixedHeight(36)
+        tb.setStyleSheet(f"background: {T['tbarbg']};")
+        tb.move(0, 0)
+        tb.resize(420, 36)
+
+        accent_bar = QFrame(tb)
+        accent_bar.setFixedWidth(3)
+        accent_bar.setStyleSheet(f"background: {T['accent']};")
+        accent_bar.move(0, 0)
+        accent_bar.resize(3, 36)
+
+        lbl = QLabel("  ⚙  SETTINGS", tb)
+        lbl.setStyleSheet(f"color: {T['muted']}; font: 7pt 'Courier New'; font-weight: bold; background: transparent;")
+        lbl.move(10, 10)
+
+        close_btn = QPushButton("  ✕  ", tb)
+        close_btn.setFixedSize(40, 36)
+        close_btn.move(420 - 40, 0)
+        close_btn.setStyleSheet(f"""
+            QPushButton {{ background: transparent; color: {T['muted']}; font: 10pt 'Segoe UI'; border: none; }}
+            QPushButton:hover {{ background: {T['accent2']}; color: white; }}
+        """)
+        close_btn.clicked.connect(self.close)
+
+        tb.setMouseTracking(True)
+        close_btn.raise_()
+
+    def mousePressEvent(self, event) -> None:
+        if event.position().y() < 36:
+            self._drag_pos = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
+            event.accept()
+
+    def mouseMoveEvent(self, event) -> None:
+        if self._drag_pos is not None and event.buttons() == Qt.LeftButton:
+            self.move(event.globalPosition().toPoint() - self._drag_pos)
+            event.accept()
+
+    def mouseReleaseEvent(self, event) -> None:
+        self._drag_pos = None
 
     # ── Body ──────────────────────────────────────────────────────────────────
-    def _build_body(self) -> None:
-        T = self._theme
+    def _build_body(self, T: dict) -> None:
+        container = QWidget(self)
+        container.setGeometry(0, 36, 420, 530 - 36)
 
-        def row(label: str) -> None:
-            tk.Label(self.win, text=label, bg=T["bg"], fg=T["teal"],
-                     font=("Courier New", 7, "bold")).pack(
-                     anchor="w", padx=20, pady=(14, 4))
+        layout = QVBoxLayout(container)
+        layout.setContentsMargins(20, 10, 20, 20)
+        layout.setSpacing(0)
+
+        def section_header(text: str) -> None:
+            lbl = QLabel(text)
+            lbl.setStyleSheet(f"color: {T['teal']}; font: 7pt 'Courier New'; font-weight: bold;")
+            layout.addWidget(lbl)
+            layout.addSpacing(4)
 
         # Device name
-        row("DEVICE NAME  (restart required)")
-        self._name = tk.StringVar(value=self._config["device_name"])
-        ef = tk.Frame(self.win, bg=T.get("input_bg", T["card"]),
-                      highlightbackground=T["border"], highlightthickness=1)
-        ef.pack(fill="x", padx=20)
-        tk.Entry(ef, textvariable=self._name,
-                 bg=T.get("input_bg", T["card"]),
-                 fg=T.get("input_fg", T["text"]),
-                 insertbackground=T["accent"], relief="flat",
-                 font=("Segoe UI", 10), bd=6).pack(fill="x")
+        section_header("DEVICE NAME  (restart required)")
+        name_edit = QLineEdit(self._config["device_name"])
+        layout.addWidget(name_edit)
+        self._name_edit = name_edit
+        layout.addSpacing(8)
 
         # Theme
-        row("THEME")
+        section_header("THEME")
         names = self._theme.names()
         cur   = self._config["theme"] if self._config["theme"] in names else "Indigo Night"
-        self._theme_v = tk.StringVar(value=cur)
-        ttk.Combobox(self.win, textvariable=self._theme_v, values=names,
-                     state="readonly", style="S.TCombobox",
-                     font=("Segoe UI", 10)).pack(fill="x", padx=20)
-        tk.Label(self.win, text=f"Custom themes: {THEME_FILE}",
-                 bg=T["bg"], fg=T["muted"], font=("Courier New", 6)
-                 ).pack(anchor="w", padx=20, pady=(3, 0))
+        theme_cb = QComboBox()
+        theme_cb.addItems(names)
+        theme_cb.setCurrentText(cur)
+        layout.addWidget(theme_cb)
+        self._theme_cb = theme_cb
+
+        theme_path_lbl = QLabel(f"Custom themes: {THEME_FILE}")
+        theme_path_lbl.setStyleSheet(f"color: {T['muted']}; font: 6pt 'Courier New';")
+        layout.addWidget(theme_path_lbl)
+        layout.addSpacing(8)
 
         # Audio device
-        row("AUDIO OUTPUT  (optical / S-PDIF)")
-        devs      = self._audio.list_devices()
-        self._dn  = ["Default (system)"] + [d[1] for d in devs]
-        self._di  = [None]               + [d[0] for d in devs]
-        cur_d     = (self._di.index(self._config["audio_device"])
-                     if self._config["audio_device"] in self._di else 0)
-        self._dv  = tk.StringVar(value=self._dn[cur_d])
-        ttk.Combobox(self.win, textvariable=self._dv, values=self._dn,
-                     state="readonly", style="S.TCombobox",
-                     font=("Segoe UI", 10)).pack(fill="x", padx=20)
+        section_header("AUDIO OUTPUT  (optical / S-PDIF)")
+        devs = self._audio.list_devices()
+        dn   = ["Default (system)"] + [d[1] for d in devs]
+        di   = [None] + [d[0] for d in devs]
+        cur_d = di.index(self._config["audio_device"]) if self._config["audio_device"] in di else 0
+
+        audio_cb = QComboBox()
+        audio_cb.addItems(dn)
+        audio_cb.setCurrentIndex(cur_d)
+        layout.addWidget(audio_cb)
+        self._audio_cb = audio_cb
+        self._audio_dn = dn
+        self._audio_di = di
+        layout.addSpacing(8)
 
         # Audio status
-        row("AUDIO STATUS")
-        src = self._audio.SRC_RATE; dst = self._audio._dst_rate
-        for txt, col in [
-            ((f"✓  {src} Hz  (no resampling)" if src == dst
-              else f"↕  {src} Hz → {dst} Hz  (resampling)"),
-             T["green"] if src == dst else T["amber"]),
-            (("✓  PyAV — ALAC decoding active"
-              if self._alac_ok() else "✗  pip install av  — REQUIRED"),
-             T["green"] if self._alac_ok() else T["accent2"]),
-        ]:
-            tk.Label(self.win, text=txt, bg=T["bg"], fg=col,
-                     font=("Courier New", 7)).pack(anchor="w", padx=20)
+        section_header("AUDIO STATUS")
 
-        # Developer / debug
-        row("DEVELOPER")
-        dbg_frame = tk.Frame(self.win, bg=T["bg"])
-        dbg_frame.pack(fill="x", padx=20, pady=(0, 4))
-        self._debug_v = tk.BooleanVar(value=self._config.get("debug_mode", False))
-        self._dbg_btn = tk.Button(
-            dbg_frame, text="", bg=T["card2"], fg=T["muted"],
-            relief="flat", font=("Courier New", 7, "bold"),
-            cursor="hand2", padx=10, pady=5, command=self._toggle_debug)
-        self._dbg_btn.pack(side="left")
-        self._update_debug_btn()
-        tk.Label(dbg_frame, text="  Verbose RTSP/RTP/DACP logging",
-                 bg=T["bg"], fg=T["muted"], font=("Courier New", 6)
-                 ).pack(side="left")
-        tk.Label(self.win, text=f"Log: {LOG_FILE}",
-                 bg=T["bg"], fg=T["muted"], font=("Courier New", 6)
-                 ).pack(anchor="w", padx=20, pady=(0, 2))
-        tk.Button(self.win, text="Open Log File",
-                  bg=T["card2"], fg=T["text2"], relief="flat",
-                  font=("Courier New", 7), cursor="hand2", padx=8, pady=3,
-                  command=lambda: open_path(LOG_FILE)
-                  ).pack(anchor="w", padx=20)
+        src = self._audio.SRC_RATE
+        dst = self._audio._dst_rate
+        resample_text = (
+            f"✓  {src} Hz  (no resampling)" if src == dst
+            else f"↕  {src} Hz → {dst} Hz  (resampling)"
+        )
+        resample_col = T["green"] if src == dst else T["amber"]
+        alac_txt = "✓  PyAV — ALAC decoding active" if self._alac_ok() else "✗  pip install av  — REQUIRED"
+        alac_col = T["green"] if self._alac_ok() else T["accent2"]
+
+        for txt, col in [(resample_text, resample_col), (alac_txt, alac_col)]:
+            lbl = QLabel(txt)
+            lbl.setStyleSheet(f"color: {col}; font: 7pt 'Courier New';")
+            layout.addWidget(lbl)
+
+        layout.addSpacing(8)
+
+        # Developer
+        section_header("DEVELOPER")
+        dbg_layout = QHBoxLayout()
+        dbg_layout.setContentsMargins(0, 0, 0, 0)
+
+        self._debug_on = bool(self._config.get("debug_mode", False))
+        self._dbg_btn = QPushButton("DEBUG  ON" if self._debug_on else "DEBUG  OFF")
+        self._dbg_btn.setStyleSheet(self._dbg_style(self._debug_on, T))
+        self._dbg_btn.clicked.connect(self._toggle_debug)
+        dbg_layout.addWidget(self._dbg_btn)
+
+        dbg_lbl = QLabel("  Verbose RTSP/RTP/DACP logging")
+        dbg_lbl.setStyleSheet(f"color: {T['muted']}; font: 6pt 'Courier New';")
+        dbg_layout.addWidget(dbg_lbl)
+        dbg_layout.addStretch()
+        layout.addLayout(dbg_layout)
+
+        log_lbl = QLabel(f"Log: {LOG_FILE}")
+        log_lbl.setStyleSheet(f"color: {T['muted']}; font: 6pt 'Courier New';")
+        layout.addWidget(log_lbl)
+
+        open_log_btn = QPushButton("Open Log File")
+        open_log_btn.clicked.connect(lambda: open_path(LOG_FILE))
+        layout.addWidget(open_log_btn)
+
+        layout.addStretch()
 
         # Divider + buttons
-        tk.Frame(self.win, bg=T["border"], height=1).pack(
-            fill="x", padx=20, pady=14)
-        bf = tk.Frame(self.win, bg=T["bg"])
-        bf.pack()
-        for text, cmd, bg_, fg_ in [
-            ("Save",            self._save,                          T["accent"],  "white"),
-            ("Open Theme File", lambda: open_path(THEME_FILE),       T["card2"],   T["text2"]),
-            ("Cancel",          self.win.destroy,                    T["card2"],   T["text"]),
-        ]:
-            tk.Button(bf, text=text, command=cmd,
-                      bg=bg_, fg=fg_, relief="flat",
-                      activebackground=T["border"], activeforeground=T["text"],
-                      font=("Segoe UI", 10), cursor="hand2",
-                      padx=16, pady=9).pack(side="left", padx=5)
+        divider = QFrame()
+        divider.setFrameShape(QFrame.HLine)
+        divider.setFixedHeight(1)
+        divider.setStyleSheet(f"color: {T['border']}; background: {T['border']};")
+        layout.addWidget(divider)
+        layout.addSpacing(8)
+
+        btn_layout = QHBoxLayout()
+        btn_layout.setContentsMargins(0, 0, 0, 0)
+
+        save_btn = QPushButton("Save")
+        save_btn.setStyleSheet(f"""
+            QPushButton {{ background: {T['accent']}; color: white; border: none;
+                border-radius: 4px; padding: 8px 16px; font-size: 10pt; }}
+            QPushButton:hover {{ background: {T['accent2']}; }}
+        """)
+        save_btn.clicked.connect(self._save)
+        btn_layout.addWidget(save_btn)
+
+        open_theme_btn = QPushButton("Open Theme File")
+        open_theme_btn.clicked.connect(lambda: open_path(THEME_FILE))
+        btn_layout.addWidget(open_theme_btn)
+
+        cancel_btn = QPushButton("Cancel")
+        cancel_btn.clicked.connect(self.close)
+        btn_layout.addWidget(cancel_btn)
+
+        layout.addLayout(btn_layout)
+
+    def _dbg_style(self, on: bool, T: dict) -> str:
+        bg = T["teal"] if on else T["card2"]
+        fg = T["bg"] if on else T["muted"]
+        return f"""
+            QPushButton {{ background: {bg}; color: {fg}; border: none;
+                border-radius: 4px; padding: 6px 12px; font: 7pt 'Courier New'; font-weight: bold; }}
+            QPushButton:hover {{ background: {T['border']}; }}
+        """
 
     # ── Helpers ───────────────────────────────────────────────────────────────
     @staticmethod
     def _alac_ok() -> bool:
-        try: import av; return True
-        except ImportError: return False
+        try:
+            import av  # noqa: F401
+            return True
+        except ImportError:
+            return False
 
     def _toggle_debug(self) -> None:
-        self._debug_v.set(not self._debug_v.get())
-        self._update_debug_btn()
-
-    def _update_debug_btn(self) -> None:
-        T  = self._theme
-        on = self._debug_v.get()
-        self._dbg_btn.config(
-            text=f"DEBUG  {'ON ' if on else 'OFF'}",
-            bg=T["teal"] if on else T["card2"],
-            fg=T["bg"]   if on else T["muted"],
-        )
+        self._debug_on = not self._debug_on
+        self._dbg_btn.setText("DEBUG  ON" if self._debug_on else "DEBUG  OFF")
+        self._dbg_btn.setStyleSheet(self._dbg_style(self._debug_on, self._theme._t))
 
     def _save(self) -> None:
-        n = self._name.get().strip()
+        n = self._name_edit.text().strip()
         if n:
             self._config["device_name"] = n
 
-        new_theme = self._theme_v.get()
+        new_theme = self._theme_cb.currentText()
         theme_changed = new_theme != self._config["theme"]
         if theme_changed:
             self._config["theme"] = new_theme
             self._theme.apply(new_theme)
-            clear_cache()
 
-        new_debug = self._debug_v.get()
+        new_debug = self._debug_on
         if new_debug != self._config.get("debug_mode", False):
             self._config["debug_mode"] = new_debug
             from airplay_receiver.config import set_debug_mode
             import logging
             set_debug_mode(new_debug, logging.getLogger("AirPlay"))
 
-        sel = self._dv.get()
-        if sel in self._dn:
-            new_dev = self._di[self._dn.index(sel)]
+        sel = self._audio_cb.currentText()
+        if sel in self._audio_dn:
+            new_dev = self._audio_di[self._audio_dn.index(sel)]
             if new_dev != self._config["audio_device"]:
                 self._config["audio_device"] = new_dev
                 self._audio.set_device(new_dev)
 
-        self.win.destroy()
+        self.close()
 
         if theme_changed and self._ui_ref:
-            self.root.after(50, self._ui_ref.retheme)
+            from PySide6.QtCore import QTimer
+            QTimer.singleShot(50, self._ui_ref.retheme)
